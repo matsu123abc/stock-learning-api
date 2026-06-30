@@ -1,7 +1,11 @@
+import os
+import json
+from math import log, sqrt, exp
+
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
-from math import log, sqrt, exp
 from scipy.stats import norm
+from openai import AzureOpenAI
 import yfinance as yf
 import numpy as np
 
@@ -91,6 +95,72 @@ def greeks(S, K, T, r, sigma, option_type):
     }
 
 # -----------------------------
+# GPT: IV戦略生成
+# -----------------------------
+def gpt_iv_strategy(iv, S, K, T, option_type):
+    client = AzureOpenAI(
+        api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+        api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
+        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
+    )
+
+    prompt = f"""
+あなたはオプション戦略の専門家であり、同時に初心者向けの講師でもあります。
+
+以下の IV（インプライドボラティリティ）とオプション条件を分析し、
+1. 最適な戦略（例：ベアコール / ブルプット / ストラドル / ストラングル など）
+2. 専門家としての判断理由（2〜3行）
+3. 初心者向けに、できるだけ噛み砕いた解説（3〜6行）
+4. 初心者が注意すべきポイント（1〜2行）
+5. 読みが外れた場合の「次の一手（Plan B）」を提案（3〜5行）
+
+返答は必ず次の JSON 形式のみ：
+
+{{
+  "strategy": "戦略名",
+  "expert_reason": "専門家としての理由を2〜3行で",
+  "beginner_explanation": "初心者向けに3〜6行でわかりやすく解説",
+  "beginner_caution": "初心者が注意すべきポイントを1〜2行で",
+  "next_step": "読みが外れた場合の次の一手を3〜5行で"
+}}
+
+【IVデータ】
+IV: {iv}
+株価: {S}
+ストライク: {K}
+満期: {T}
+オプションタイプ: {option_type}
+"""
+
+    try:
+        res = client.chat.completions.create(
+            model=os.getenv("AZURE_OPENAI_DEPLOYMENT"),
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+        )
+        raw = res.choices[0].message.content.strip()
+
+        json_start = raw.find("{")
+        json_end = raw.rfind("}") + 1
+        if json_start == -1 or json_end == -1:
+            return {"error": "no_json_found", "raw": raw}
+
+        json_text = raw[json_start:json_end]
+        json_text = json_text.replace("```json", "").replace("```", "").strip()
+
+        try:
+            data = json.loads(json_text)
+        except Exception as e:
+            return {"error": "json_parse_error", "exception": str(e), "raw": raw, "json_text": json_text}
+
+        keys = ["strategy", "expert_reason", "beginner_explanation", "beginner_caution", "next_step"]
+        safe_data = {k: data.get(k, "") for k in keys}
+        return safe_data
+
+    except Exception as e:
+        return {"error": "api_exception", "exception": str(e)}
+
+# -----------------------------
 # API: Greeks
 # -----------------------------
 @app.get("/api/greeks")
@@ -114,7 +184,7 @@ def api_historical_vol(ticker: str = "^N225", days: int = 20):
         hist = yf_ticker.history(period=f"{days+1}d")
 
         if len(hist) < days + 1:
-            return {"error": "データ不足"}
+            return {"volatility": None}
 
         close = hist["Close"].values
         log_returns = np.log(close[1:] / close[:-1])
@@ -126,7 +196,7 @@ def api_historical_vol(ticker: str = "^N225", days: int = 20):
         return {"error": str(e)}
 
 # -----------------------------
-# ② 日経225の現在値（共通化）
+# 日経225の現在値（共通化）
 # -----------------------------
 @app.get("/api/nk225_params")
 def nk225_params():
@@ -161,7 +231,14 @@ def api_iv(S: float,
     return {"iv": iv}
 
 # -----------------------------
-# UI : 自動計算版 + IV計算UI追加
+# API: IV戦略（GPT）
+# -----------------------------
+@app.get("/api/iv_strategy")
+def api_iv_strategy(iv: float, S: float, K: float, T: float, option_type: str):
+    return gpt_iv_strategy(iv, S, K, T, option_type)
+
+# -----------------------------
+# UI : 自動計算版 + IV計算 + IV戦略
 # -----------------------------
 @app.get("/", response_class=HTMLResponse)
 def index():
@@ -211,7 +288,7 @@ def index():
     color:#fff;
     border:none;
   }
-  #resultBox, #ivBox{
+  #resultBox, #ivBox, #ivStrategyBox{
     background:var(--panel);
     padding:16px;
     border-radius:10px;
@@ -262,6 +339,14 @@ def index():
 <button onclick="loadIV()">IVを計算する</button>
 
 <div id="ivBox"></div>
+
+<hr>
+
+<h3>IV戦略（GPT）</h3>
+
+<button onclick="loadIVStrategy()">IV戦略を表示する</button>
+
+<div id="ivStrategyBox"></div>
 
 <script>
 async function loadNK225(){
@@ -327,7 +412,47 @@ async function loadIV(){
 
     document.getElementById("ivBox").innerHTML = `
 <b>【IV（インプライド・ボラティリティ）】</b><br>
-${iv.iv ? iv.iv : "計算できませんでした"}
+${iv.iv ? iv.iv : (iv.error ? iv.error : "計算できませんでした")}
+    `;
+}
+
+async function loadIVStrategy(){
+    const S = document.getElementById("S").value;
+    const K = document.getElementById("K").value;
+    const T = document.getElementById("T").value;
+    const option_type = document.getElementById("option_type").value;
+
+    const ivText = document.getElementById("ivBox").innerText;
+    const ivMatch = ivText.match(/([0-9.]+)/);
+    if(!ivMatch){
+        document.getElementById("ivStrategyBox").innerHTML = "先に IV を計算してください。";
+        return;
+    }
+    const iv = parseFloat(ivMatch[1]);
+
+    const url = `/api/iv_strategy?iv=${iv}&S=${S}&K=${K}&T=${T}&option_type=${option_type}`;
+    const strategy = await fetch(url).then(r => r.json());
+
+    if(strategy.error){
+        document.getElementById("ivStrategyBox").innerHTML = "戦略生成でエラーが発生しました。";
+        return;
+    }
+
+    document.getElementById("ivStrategyBox").innerHTML = `
+<b>【IV戦略】</b><br>
+戦略: ${strategy.strategy}<br><br>
+
+<b>専門家の判断理由</b><br>
+${strategy.expert_reason}<br><br>
+
+<b>初心者向けの解説</b><br>
+${strategy.beginner_explanation}<br><br>
+
+<b>注意ポイント</b><br>
+${strategy.beginner_caution}<br><br>
+
+<b>次の一手（Plan B）</b><br>
+${strategy.next_step}
     `;
 }
 
