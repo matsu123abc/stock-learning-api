@@ -71,14 +71,20 @@ def api_historical_vol(ticker: str = "^N225", days: int = 20):
     return {"ticker": ticker, "days": days, "volatility": vol}
 
 # -----------------------------
-# API: 日経225 現在値取得
+# ② 日経225の現在値（オプション取引ツールと共通化）
 # -----------------------------
 @app.get("/api/nk225_params")
-def api_nk225_params():
-    data = yf.download("^N225", period="2d")
-    price = float(data["Close"][-1])
-    prev = float(data["Close"][-2])
-    return {"price": price, "previous_close": prev}
+def nk225_params():
+    try:
+        yf_ticker = yf.Ticker("^N225")
+        info = yf_ticker.info
+
+        return {
+            "price": info.get("regularMarketPrice"),
+            "previous_close": info.get("regularMarketPreviousClose")
+        }
+    except Exception as e:
+        return {"error": str(e)}
 
 # -----------------------------
 # UI : 自動計算版
