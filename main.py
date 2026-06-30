@@ -256,7 +256,7 @@ def index():
 
 <h3>IV計算</h3>
 
-市場価格（market price）:<br>
+市場価格（オプション価格）:<br>
 <input id="market_price" type="number" placeholder="例: 1800">
 
 <button onclick="loadIV()">IVを計算する</button>
@@ -288,9 +288,11 @@ async function loadSummary(){
     const priceUrl  = `/api/bs_price?S=${S}&K=${K}&T=${T}&r=${r}&sigma=${sigma}&option_type=${option_type}`;
     const hvUrl     = `/api/vol/historical?days=20`;
 
-    const greeks = await fetch(greeksUrl).then(r=>r.json());
-    const price  = await fetch(priceUrl).then(r=>r.json());
-    const hv     = await fetch(hvUrl).then(r=>r.json());
+    const [greeks, price, hv] = await Promise.all([
+        fetch(greeksUrl).then(r => r.json()),
+        fetch(priceUrl).then(r => r.json()),
+        fetch(hvUrl).then(r => r.json())
+    ]);
 
     document.getElementById("resultBox").innerHTML = `
 📌 株価 S: ${S}<br>
@@ -307,7 +309,7 @@ rho: ${greeks.rho}<br><br>
 price: ${price.price}<br><br>
 
 <b>【ヒストリカルボラ（20日）】</b><br>
-volatility: ${hv.volatility}
+volatility: ${hv.volatility ?? "データなし"}
     `;
 }
 
