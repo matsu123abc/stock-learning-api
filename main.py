@@ -116,6 +116,7 @@ def gpt_iv_strategy(iv, S, K, T, option_type):
 - delta / gamma / theta / vega / rho
 - 株価 S と ストライク K の位置関係
 - 満期 T（年換算）
+- 最大利益・最大損失の具体例（可能な場合）
 
 出力内容：
 1. 最適な戦略（例：ベアコール / ブルプット / ストラドル / ストラングル など）
@@ -141,7 +142,7 @@ IV: {iv}
 満期 T: {T}
 オプションタイプ: {option_type}
 """
-   
+  
     try:
         res = client.chat.completions.create(
             model=os.getenv("AZURE_OPENAI_DEPLOYMENT"),
