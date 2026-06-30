@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse
 from math import log, sqrt, exp
 from scipy.stats import norm
 import yfinance as yf
+import numpy as np
 
 app = FastAPI()
 
