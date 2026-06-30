@@ -17,6 +17,49 @@ def d2(S, K, T, r, sigma):
     return d1(S, K, T, r, sigma) - sigma * sqrt(T)
 
 # -----------------------------
+# Black-Scholes price only
+# -----------------------------
+def bs_price(S, K, T, r, sigma, option_type):
+    D1 = d1(S, K, T, r, sigma)
+    D2 = d2(S, K, T, r, sigma)
+
+    if option_type == "call":
+        return S * norm.cdf(D1) - K * exp(-r * T) * norm.cdf(D2)
+    else:
+        return K * exp(-r * T) * norm.cdf(-D2) - S * norm.cdf(-D1)
+
+# -----------------------------
+# Vega（IV計算に必要）
+# -----------------------------
+def bs_vega(S, K, T, r, sigma):
+    D1 = d1(S, K, T, r, sigma)
+    return S * norm.pdf(D1) * sqrt(T)
+
+# -----------------------------
+# IV計算（ニュートン法）
+# -----------------------------
+def implied_volatility(S, K, T, r, market_price, option_type,
+                       initial_sigma=0.2, tol=1e-6, max_iter=100):
+    sigma = initial_sigma
+
+    for _ in range(max_iter):
+        price = bs_price(S, K, T, r, sigma, option_type)
+        diff = price - market_price
+
+        if abs(diff) < tol:
+            return sigma
+
+        vega = bs_vega(S, K, T, r, sigma)
+        if vega == 0:
+            break
+
+        sigma = sigma - diff / vega
+        if sigma <= 0:
+            sigma = tol
+
+    return None
+
+# -----------------------------
 # Greeks
 # -----------------------------
 def greeks(S, K, T, r, sigma, option_type):
@@ -83,7 +126,7 @@ def api_historical_vol(ticker: str = "^N225", days: int = 20):
         return {"error": str(e)}
 
 # -----------------------------
-# ② 日経225の現在値（オプション取引ツールと共通化）
+# ② 日経225の現在値（共通化）
 # -----------------------------
 @app.get("/api/nk225_params")
 def nk225_params():
@@ -99,7 +142,26 @@ def nk225_params():
         return {"error": str(e)}
 
 # -----------------------------
-# UI : 自動計算版
+# API: IV計算
+# -----------------------------
+@app.get("/api/iv")
+def api_iv(S: float,
+           K: float,
+           T: float,
+           r: float,
+           market_price: float,
+           option_type: str,
+           initial_sigma: float = 0.2):
+    iv = implied_volatility(S, K, T, r, market_price, option_type,
+                            initial_sigma=initial_sigma)
+
+    if iv is None:
+        return {"error": "IVが収束しませんでした"}
+
+    return {"iv": iv}
+
+# -----------------------------
+# UI : 自動計算版 + IV計算UI追加
 # -----------------------------
 @app.get("/", response_class=HTMLResponse)
 def index():
@@ -149,7 +211,7 @@ def index():
     color:#fff;
     border:none;
   }
-  #resultBox{
+  #resultBox, #ivBox{
     background:var(--panel);
     padding:16px;
     border-radius:10px;
@@ -189,6 +251,17 @@ def index():
 <button onclick="loadSummary()">計算する</button>
 
 <div id="resultBox"></div>
+
+<hr>
+
+<h3>IV計算</h3>
+
+市場価格（market price）:<br>
+<input id="market_price" type="number" placeholder="例: 1800">
+
+<button onclick="loadIV()">IVを計算する</button>
+
+<div id="ivBox"></div>
 
 <script>
 async function loadNK225(){
@@ -238,9 +311,27 @@ volatility: ${hv.volatility}
     `;
 }
 
+async function loadIV(){
+    const S = document.getElementById("S").value;
+    const K = document.getElementById("K").value;
+    const T = document.getElementById("T").value;
+    const r = document.getElementById("r").value;
+    const market_price = document.getElementById("market_price").value;
+    const option_type = document.getElementById("option_type").value;
+
+    const url = `/api/iv?S=${S}&K=${K}&T=${T}&r=${r}&market_price=${market_price}&option_type=${option_type}`;
+
+    const iv = await fetch(url).then(r => r.json());
+
+    document.getElementById("ivBox").innerHTML = `
+<b>【IV（インプライド・ボラティリティ）】</b><br>
+${iv.iv ? iv.iv : "計算できませんでした"}
+    `;
+}
+
 window.onload = async () => {
-    await loadNK225();   // 株価自動取得
-    await loadSummary(); // 自動計算
+    await loadNK225();
+    await loadSummary();
 };
 </script>
 
