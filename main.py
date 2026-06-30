@@ -72,8 +72,182 @@ def api_historical_vol(ticker: str = "^N225", days: int = 20):
     return {"ticker": ticker, "days": days, "volatility": vol}
 
 # -----------------------------
-# 起動確認
+# UI : 
 # -----------------------------
-@app.get("/")
-def root():
-    return {"message": "stock-learning-api is running"}
+@app.get("/", response_class=HTMLResponse)
+def index():
+    return """
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>stock-learning-api</title>
+
+<style>
+  :root{
+    --bg:#ffffff;
+    --panel:#f2f2f2;
+    --accent:#0078ff;
+    --text:#000;
+  }
+
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:system-ui, -apple-system, "Hiragino Kaku Gothic ProN", sans-serif;
+    padding:16px;
+    font-size:22px;
+  }
+
+  h2, h3{
+    font-size:28px;
+    margin-bottom:12px;
+  }
+
+  select, input{
+    width:100%;
+    font-size:24px;
+    padding:16px;
+    margin:10px 0;
+    border-radius:10px;
+    border:1px solid #ccc;
+    background:#fff;
+  }
+
+  button{
+    width:100%;
+    font-size:26px;
+    padding:18px;
+    border-radius:12px;
+    margin-top:16px;
+    background:var(--accent);
+    color:#fff;
+    border:none;
+  }
+
+  #resultBox{
+    background:var(--panel);
+    padding:16px;
+    border-radius:10px;
+    font-size:24px;
+    margin-top:16px;
+  }
+
+  pre{
+    background:var(--panel);
+    padding:16px;
+    border-radius:10px;
+    font-size:24px;
+    white-space:pre-wrap;
+  }
+</style>
+</head>
+
+<body>
+
+<h2>stock-learning-api</h2>
+
+<h3>入力</h3>
+
+株価 S:<br>
+<input id="S" type="number" placeholder="例: 70000">
+
+ストライク K:<br>
+<input id="K" type="number" placeholder="例: 70000">
+
+満期 T（年換算）:<br>
+<input id="T" type="number" placeholder="例: 0.1">
+
+金利 r:<br>
+<input id="r" type="number" placeholder="例: 0.001">
+
+ボラティリティ σ:<br>
+<input id="sigma" type="number" placeholder="例: 0.20">
+
+オプションタイプ:<br>
+<select id="option_type">
+  <option value="call">コール</option>
+  <option value="put">プット</option>
+</select>
+
+<button onclick="loadSummary()">計算する</button>
+
+<div id="resultBox"></div>
+
+<!-- 保存ボタン -->
+<button onclick="saveAsHtml()">現在の画面をHTMLで保存</button>
+
+<script>
+async function loadSummary(){
+    const S = document.getElementById("S").value;
+    const K = document.getElementById("K").value;
+    const T = document.getElementById("T").value;
+    const r = document.getElementById("r").value;
+    const sigma = document.getElementById("sigma").value;
+    const option_type = document.getElementById("option_type").value;
+
+    const greeksUrl = `/api/greeks?S=${S}&K=${K}&T=${T}&r=${r}&sigma=${sigma}&option_type=${option_type}`;
+    const priceUrl  = `/api/bs_price?S=${S}&K=${K}&T=${T}&r=${r}&sigma=${sigma}&option_type=${option_type}`;
+    const hvUrl     = `/api/vol/historical?days=20`;
+
+    const greeks = await fetch(greeksUrl).then(r=>r.json());
+    const price  = await fetch(priceUrl).then(r=>r.json());
+    const hv     = await fetch(hvUrl).then(r=>r.json());
+
+    document.getElementById("resultBox").innerHTML = `
+📌 株価 S: ${S}<br>
+📌 ボラティリティ σ: ${sigma}<br><br>
+
+<b>【Greeks】</b><br>
+delta: ${greeks.delta}<br>
+gamma: ${greeks.gamma}<br>
+theta: ${greeks.theta}<br>
+vega: ${greeks.vega}<br>
+rho: ${greeks.rho}<br><br>
+
+<b>【BS価格】</b><br>
+price: ${price.price}<br><br>
+
+<b>【ヒストリカルボラ（20日）】</b><br>
+volatility: ${hv.volatility}
+    `;
+}
+
+/* HTML保存機能（章さんのコードそのまま） */
+function escapeHtml(s) {
+  if (s == null) return "";
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function saveAsHtml() {
+  try {
+    const html = document.documentElement.outerHTML;
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const ts = new Date().toISOString().replace(/[:.]/g, "-");
+    const filename = `stock_learning_snapshot_${ts}.html`;
+
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
+  } catch (e) {
+    alert("保存に失敗しました");
+  }
+}
+
+</script>
+
+</body>
+</html>
+"""
+
