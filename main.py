@@ -61,14 +61,25 @@ def api_bs_price(S: float, K: float, T: float, r: float, sigma: float, option_ty
     return {"price": greeks(S, K, T, r, sigma, option_type)["price"]}
 
 # -----------------------------
-# API: Historical Volatility
+# API: Historical Volatility（安定版）
 # -----------------------------
 @app.get("/api/vol/historical")
 def api_historical_vol(ticker: str = "^N225", days: int = 20):
-    data = yf.download(ticker, period=f"{days}d")
-    returns = data["Close"].pct_change().dropna()
-    vol = returns.std() * sqrt(252)
-    return {"ticker": ticker, "days": days, "volatility": vol}
+    try:
+        yf_ticker = yf.Ticker(ticker)
+        hist = yf_ticker.history(period=f"{days+1}d")
+
+        if len(hist) < days + 1:
+            return {"error": "データ不足"}
+
+        close = hist["Close"].values
+        log_returns = np.log(close[1:] / close[:-1])
+        vol = float(np.std(log_returns) * np.sqrt(252))
+
+        return {"ticker": ticker, "days": days, "volatility": vol}
+
+    except Exception as e:
+        return {"error": str(e)}
 
 # -----------------------------
 # ② 日経225の現在値（オプション取引ツールと共通化）
