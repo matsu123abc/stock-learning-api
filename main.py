@@ -73,6 +73,16 @@ def api_historical_vol(ticker: str = "^N225", days: int = 20):
     return {"ticker": ticker, "days": days, "volatility": vol}
 
 # -----------------------------
+# API: 日経225 現在値取得
+# -----------------------------
+@app.get("/api/nk225_params")
+def api_nk225_params():
+    data = yf.download("^N225", period="2d")
+    price = float(data["Close"][-1])
+    prev = float(data["Close"][-2])
+    return {"price": price, "previous_close": prev}
+
+# -----------------------------
 # UI : 
 # -----------------------------
 @app.get("/", response_class=HTMLResponse)
@@ -135,14 +145,6 @@ def index():
     font-size:24px;
     margin-top:16px;
   }
-
-  pre{
-    background:var(--panel);
-    padding:16px;
-    border-radius:10px;
-    font-size:24px;
-    white-space:pre-wrap;
-  }
 </style>
 </head>
 
@@ -178,6 +180,18 @@ def index():
 <div id="resultBox"></div>
 
 <script>
+async function loadNK225(){
+    try{
+        const res = await fetch("/api/nk225_params");
+        const data = await res.json();
+        if(data.price){
+            document.getElementById("S").value = data.price;
+        }
+    }catch(e){
+        console.log("NK225取得エラー:", e);
+    }
+}
+
 async function loadSummary(){
     const S = document.getElementById("S").value;
     const K = document.getElementById("K").value;
@@ -213,9 +227,9 @@ volatility: ${hv.volatility}
     `;
 }
 
+window.onload = loadNK225;
 </script>
 
 </body>
 </html>
 """
-
