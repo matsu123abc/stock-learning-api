@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 from math import log, sqrt, exp
 from scipy.stats import norm
 import yfinance as yf
@@ -176,9 +177,6 @@ def index():
 
 <div id="resultBox"></div>
 
-<!-- 保存ボタン -->
-<button onclick="saveAsHtml()">現在の画面をHTMLで保存</button>
-
 <script>
 async function loadSummary(){
     const S = document.getElementById("S").value;
@@ -213,36 +211,6 @@ price: ${price.price}<br><br>
 <b>【ヒストリカルボラ（20日）】</b><br>
 volatility: ${hv.volatility}
     `;
-}
-
-/* HTML保存機能（章さんのコードそのまま） */
-function escapeHtml(s) {
-  if (s == null) return "";
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
-function saveAsHtml() {
-  try {
-    const html = document.documentElement.outerHTML;
-    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-    const ts = new Date().toISOString().replace(/[:.]/g, "-");
-    const filename = `stock_learning_snapshot_${ts}.html`;
-
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(a.href);
-  } catch (e) {
-    alert("保存に失敗しました");
-  }
 }
 
 </script>
