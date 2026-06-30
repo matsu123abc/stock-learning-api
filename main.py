@@ -35,9 +35,7 @@ def greeks(S, K, T, r, sigma, option_type):
         - (S * norm.pdf(D1) * sigma) / (2 * sqrt(T))
         - r * K * exp(-r * T) * norm.cdf(D2 if option_type == "call" else -D2)
     )
-    rho = (
-        K * T * exp(-r * T) * norm.cdf(D2 if option_type == "call" else -D2)
-    )
+    rho = K * T * exp(-r * T) * norm.cdf(D2 if option_type == "call" else -D2)
 
     return {
         "price": price,
@@ -83,7 +81,7 @@ def api_nk225_params():
     return {"price": price, "previous_close": prev}
 
 # -----------------------------
-# UI : 
+# UI : 自動計算版
 # -----------------------------
 @app.get("/", response_class=HTMLResponse)
 def index():
@@ -102,7 +100,6 @@ def index():
     --accent:#0078ff;
     --text:#000;
   }
-
   body{
     margin:0;
     background:var(--bg);
@@ -111,12 +108,10 @@ def index():
     padding:16px;
     font-size:22px;
   }
-
   h2, h3{
     font-size:28px;
     margin-bottom:12px;
   }
-
   select, input{
     width:100%;
     font-size:24px;
@@ -126,7 +121,6 @@ def index():
     border:1px solid #ccc;
     background:#fff;
   }
-
   button{
     width:100%;
     font-size:26px;
@@ -137,7 +131,6 @@ def index():
     color:#fff;
     border:none;
   }
-
   #resultBox{
     background:var(--panel);
     padding:16px;
@@ -155,19 +148,19 @@ def index():
 <h3>入力</h3>
 
 株価 S:<br>
-<input id="S" type="number" placeholder="例: 70000">
+<input id="S" type="number">
 
 ストライク K:<br>
-<input id="K" type="number" placeholder="例: 70000">
+<input id="K" type="number" value="70000">
 
 満期 T（年換算）:<br>
-<input id="T" type="number" placeholder="例: 0.1">
+<input id="T" type="number" value="0.1">
 
 金利 r:<br>
-<input id="r" type="number" placeholder="例: 0.001">
+<input id="r" type="number" value="0.001">
 
 ボラティリティ σ:<br>
-<input id="sigma" type="number" placeholder="例: 0.20">
+<input id="sigma" type="number" value="0.20">
 
 オプションタイプ:<br>
 <select id="option_type">
@@ -227,7 +220,10 @@ volatility: ${hv.volatility}
     `;
 }
 
-window.onload = loadNK225;
+window.onload = async () => {
+    await loadNK225();   // 株価自動取得
+    await loadSummary(); // 自動計算
+};
 </script>
 
 </body>
