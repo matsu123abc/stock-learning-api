@@ -552,51 +552,52 @@ window.onload = async () => {
 
 function setBullCall(){
     let K = parseFloat(document.getElementById("K").value);
-    K = Math.round(K / 1000) * 1000;  // ★ 1000円刻みに丸める
+    K = Math.round(K / 100) * 100;  // ★ 100円刻みに戻す
 
     window.currentLegs = [
         { option_type: "call", position: "long",  K: K,        quantity: 1 },
         { option_type: "call", position: "short", K: K + 1000, quantity: 1 }
     ];
 
-    alert("ブルコールスプレッド（日経225仕様）をセットしました");
+    alert("ブルコールスプレッド（日経225仕様・100円刻み）をセットしました");
 }
 
 function setBullPut(){
     let K = parseFloat(document.getElementById("K").value);
-    K = Math.round(K / 1000) * 1000;
+    K = Math.round(K / 100) * 100;
 
     window.currentLegs = [
         { option_type: "put", position: "short", K: K,        quantity: 1 },
         { option_type: "put", position: "long",  K: K - 1000, quantity: 1 }
     ];
 
-    alert("ブルプットスプレッド（日経225仕様）をセットしました");
+    alert("ブルプットスプレッド（日経225仕様・100円刻み）をセットしました");
 }
 
 function setBearCall(){
     let K = parseFloat(document.getElementById("K").value);
-    K = Math.round(K / 1000) * 1000;
+    K = Math.round(K / 100) * 100;
 
     window.currentLegs = [
         { option_type: "call", position: "short", K: K,        quantity: 1 },
         { option_type: "call", position: "long",  K: K + 1000, quantity: 1 }
     ];
 
-    alert("ベアコールスプレッド（日経225仕様）をセットしました");
+    alert("ベアコールスプレッド（日経225仕様・100円刻み）をセットしました");
 }
 
 function setBearPut(){
     let K = parseFloat(document.getElementById("K").value);
-    K = Math.round(K / 1000) * 1000;
+    K = Math.round(K / 100) * 100;
 
     window.currentLegs = [
         { option_type: "put", position: "long",  K: K,        quantity: 1 },
         { option_type: "put", position: "short", K: K - 1000, quantity: 1 }
     ];
 
-    alert("ベアプットスプレッド（日経225仕様）をセットしました");
+    alert("ベアプットスプレッド（日経225仕様・100円刻み）をセットしました");
 }
+
 
 async function runXXSimulation(){
     if(!window.currentLegs){
