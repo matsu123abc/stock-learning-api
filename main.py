@@ -551,47 +551,51 @@ window.onload = async () => {
 };
 
 function setBullCall(){
-    const K = parseFloat(document.getElementById("K").value);
+    let K = parseFloat(document.getElementById("K").value);
+    K = Math.round(K / 100) * 100;  // 100円刻みに丸める
 
     window.currentLegs = [
-        { option_type: "call", position: "long",  K: K,      quantity: 1 },
-        { option_type: "call", position: "short", K: K + 2000, quantity: 1 }
+        { option_type: "call", position: "long",  K: K,        quantity: 1 },
+        { option_type: "call", position: "short", K: K + 1000, quantity: 1 }
     ];
 
-    alert("ブルコールスプレッドをセットしました");
+    alert("ブルコールスプレッド（日経225仕様）をセットしました");
 }
 
 function setBullPut(){
-    const K = parseFloat(document.getElementById("K").value);
+    let K = parseFloat(document.getElementById("K").value);
+    K = Math.round(K / 100) * 100;
 
     window.currentLegs = [
-        { option_type: "put", position: "short", K: K,      quantity: 1 },
-        { option_type: "put", position: "long",  K: K - 2000, quantity: 1 }
+        { option_type: "put", position: "short", K: K,        quantity: 1 },
+        { option_type: "put", position: "long",  K: K - 1000, quantity: 1 }
     ];
 
-    alert("ブルプットスプレッドをセットしました");
+    alert("ブルプットスプレッド（日経225仕様）をセットしました");
 }
 
 function setBearCall(){
-    const K = parseFloat(document.getElementById("K").value);
+    let K = parseFloat(document.getElementById("K").value);
+    K = Math.round(K / 100) * 100;
 
     window.currentLegs = [
-        { option_type: "call", position: "short", K: K,      quantity: 1 },
-        { option_type: "call", position: "long",  K: K + 2000, quantity: 1 }
+        { option_type: "call", position: "short", K: K,        quantity: 1 },
+        { option_type: "call", position: "long",  K: K + 1000, quantity: 1 }
     ];
 
-    alert("ベアコールスプレッドをセットしました");
+    alert("ベアコールスプレッド（日経225仕様）をセットしました");
 }
 
 function setBearPut(){
-    const K = parseFloat(document.getElementById("K").value);
+    let K = parseFloat(document.getElementById("K").value);
+    K = Math.round(K / 100) * 100;
 
     window.currentLegs = [
-        { option_type: "put", position: "long",  K: K,      quantity: 1 },
-        { option_type: "put", position: "short", K: K - 2000, quantity: 1 }
+        { option_type: "put", position: "long",  K: K,        quantity: 1 },
+        { option_type: "put", position: "short", K: K - 1000, quantity: 1 }
     ];
 
-    alert("ベアプットスプレッドをセットしました");
+    alert("ベアプットスプレッド（日経225仕様）をセットしました");
 }
 
 async function runXXSimulation(){
