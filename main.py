@@ -510,7 +510,7 @@ theta: ${greeks.theta}<br>
 vega: ${greeks.vega}<br>
 rho: ${greeks.rho}<br><br>
 
-<b>【BS価格】</b><br>
+<b>【オプション理論価格（BSモデル）】</b><br>
 price: ${price.price}<br><br>
 
 <b>【ヒストリカルボラ（20日）】</b><br>
