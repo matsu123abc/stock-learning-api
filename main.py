@@ -184,8 +184,18 @@ def api_greeks(S: float, K: float, T: float, r: float, sigma: float, option_type
 # API: BS Price
 # -----------------------------
 @app.get("/api/bs_price")
-def api_bs_price(S: float, K: float, T: float, r: float, sigma: float, option_type: str):
-    return {"price": greeks(S, K, T, r, sigma, option_type)["price"]}
+def bs_price(S, K, T, r, sigma, option_type):
+    from math import log, sqrt, exp
+    from scipy.stats import norm
+
+    d1 = (log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * sqrt(T))
+    d2 = d1 - sigma * sqrt(T)
+
+    if option_type == "call":
+        return S * norm.cdf(d1) - K * exp(-r * T) * norm.cdf(d2)
+    else:
+        return K * exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
+
 
 # -----------------------------
 # API: Historical Volatility（安定版）
@@ -257,10 +267,12 @@ from pydantic import BaseModel
 from typing import List
 
 class Leg(BaseModel):
-    option_type: str   # "call" or "put"
-    position: str      # "long" or "short"
+    option_type: str
+    position: str
     K: float
     quantity: int = 1
+    premium: float = 0.0   # ★ 必須
+
 
 class StrategyRequest(BaseModel):
     S: float           # 現在の株価
