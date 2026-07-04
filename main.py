@@ -428,7 +428,12 @@ def index():
 
 <h3>戦略シミュレーション</h3>
 
-<button onclick="runSimulation()">戦略シミュレーションを実行する</button>
+<button onclick="setBullCall()">① ブルコールスプレッドをセット</button>
+<button onclick="setBullPut()">② ブルプットスプレッドをセット</button>
+<button onclick="setBearCall()">③ ベアコールスプレッドをセット</button>
+<button onclick="setBearPut()">④ ベアプットスプレッドをセット</button>
+
+<button onclick="runXXSimulation()">戦略シミュレーションを実行する</button>
 
 <div id="simBox"></div>
 
@@ -545,30 +550,62 @@ window.onload = async () => {
     await loadSummary();
 };
 
-async function runSimulation(){
+function setBullCall(){
+    const K = parseFloat(document.getElementById("K").value);
+
+    window.currentLegs = [
+        { option_type: "call", position: "long",  K: K,      quantity: 1 },
+        { option_type: "call", position: "short", K: K + 2000, quantity: 1 }
+    ];
+
+    alert("ブルコールスプレッドをセットしました");
+}
+
+function setBullPut(){
+    const K = parseFloat(document.getElementById("K").value);
+
+    window.currentLegs = [
+        { option_type: "put", position: "short", K: K,      quantity: 1 },
+        { option_type: "put", position: "long",  K: K - 2000, quantity: 1 }
+    ];
+
+    alert("ブルプットスプレッドをセットしました");
+}
+
+function setBearCall(){
+    const K = parseFloat(document.getElementById("K").value);
+
+    window.currentLegs = [
+        { option_type: "call", position: "short", K: K,      quantity: 1 },
+        { option_type: "call", position: "long",  K: K + 2000, quantity: 1 }
+    ];
+
+    alert("ベアコールスプレッドをセットしました");
+}
+
+function setBearPut(){
+    const K = parseFloat(document.getElementById("K").value);
+
+    window.currentLegs = [
+        { option_type: "put", position: "long",  K: K,      quantity: 1 },
+        { option_type: "put", position: "short", K: K - 2000, quantity: 1 }
+    ];
+
+    alert("ベアプットスプレッドをセットしました");
+}
+
+async function runXXSimulation(){
+    if(!window.currentLegs){
+        document.getElementById("simBox").innerHTML = "戦略がセットされていません。";
+        return;
+    }
+
     const S = parseFloat(document.getElementById("S").value);
     const T = parseFloat(document.getElementById("T").value);
     const r = parseFloat(document.getElementById("r").value);
     const sigma = parseFloat(document.getElementById("sigma").value);
 
-    // ★ まずは「単純な2レッグ戦略」を例として実装
-    // UIでレッグ選択を追加するのは後でOK
-    const legs = [
-        {
-            option_type: document.getElementById("option_type").value,
-            position: "long",
-            K: parseFloat(document.getElementById("K").value),
-            quantity: 1
-        }
-    ];
-
-    const body = {
-        S: S,
-        T: T,
-        r: r,
-        sigma: sigma,
-        legs: legs
-    };
+    const body = { S, T, r, sigma, legs: window.currentLegs };
 
     const res = await fetch("/api/strategy_simulation", {
         method: "POST",
@@ -578,26 +615,15 @@ async function runSimulation(){
 
     const data = await res.json();
 
-    if(data.error){
-        document.getElementById("simBox").innerHTML = "シミュレーションでエラーが発生しました。";
-        return;
-    }
-
-    // 損益曲線の一部だけ表示（UI簡易版）
-    let html = `
-<b>【戦略シミュレーション結果】</b><br>
+    document.getElementById("simBox").innerHTML = `
+<b>【戦略シミュレーション】</b><br>
 最大利益: ${data.max_profit}<br>
 最大損失: ${data.max_loss}<br>
 損益分岐点: ${data.breakeven}<br><br>
+
 <b>損益曲線（最初の10点）</b><br>
-`;
-
-    for(let i=0; i<10; i++){
-        const p = data.pl_curve[i];
-        html += `S=${Math.round(p.S_T)} → 利益=${p.profit}<br>`;
-    }
-
-    document.getElementById("simBox").innerHTML = html;
+${data.pl_curve.slice(0,10).map(p => `S=${Math.round(p.S_T)} → 利益=${p.profit}`).join("<br>")}
+    `;
 }
 
 </script>
