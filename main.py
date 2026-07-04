@@ -183,19 +183,21 @@ def api_greeks(S: float, K: float, T: float, r: float, sigma: float, option_type
 # -----------------------------
 # API: BS Price
 # -----------------------------
+from math import log, sqrt, exp
+from scipy.stats import norm
+
 @app.get("/api/bs_price")
-def bs_price(S, K, T, r, sigma, option_type):
-    from math import log, sqrt, exp
-    from scipy.stats import norm
+def bs_price_api(S: float, K: float, T: float, r: float, sigma: float, option_type: str):
 
     d1 = (log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * sqrt(T))
     d2 = d1 - sigma * sqrt(T)
 
     if option_type == "call":
-        return S * norm.cdf(d1) - K * exp(-r * T) * norm.cdf(d2)
+        price = S * norm.cdf(d1) - K * exp(-r * T) * norm.cdf(d2)
     else:
-        return K * exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
+        price = K * exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
 
+    return {"price": price}
 
 # -----------------------------
 # API: Historical Volatility（安定版）
