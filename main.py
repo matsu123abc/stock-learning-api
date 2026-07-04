@@ -552,7 +552,7 @@ window.onload = async () => {
 
 function setBullCall(){
     let K = parseFloat(document.getElementById("K").value);
-    K = Math.round(K / 100) * 100;  // 100円刻みに丸める
+    K = Math.round(K / 1000) * 1000;  // ★ 1000円刻みに丸める
 
     window.currentLegs = [
         { option_type: "call", position: "long",  K: K,        quantity: 1 },
@@ -564,7 +564,7 @@ function setBullCall(){
 
 function setBullPut(){
     let K = parseFloat(document.getElementById("K").value);
-    K = Math.round(K / 100) * 100;
+    K = Math.round(K / 1000) * 1000;
 
     window.currentLegs = [
         { option_type: "put", position: "short", K: K,        quantity: 1 },
@@ -576,7 +576,7 @@ function setBullPut(){
 
 function setBearCall(){
     let K = parseFloat(document.getElementById("K").value);
-    K = Math.round(K / 100) * 100;
+    K = Math.round(K / 1000) * 1000;
 
     window.currentLegs = [
         { option_type: "call", position: "short", K: K,        quantity: 1 },
@@ -588,7 +588,7 @@ function setBearCall(){
 
 function setBearPut(){
     let K = parseFloat(document.getElementById("K").value);
-    K = Math.round(K / 100) * 100;
+    K = Math.round(K / 1000) * 1000;
 
     window.currentLegs = [
         { option_type: "put", position: "long",  K: K,        quantity: 1 },
