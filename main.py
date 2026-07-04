@@ -272,22 +272,30 @@ class StrategyRequest(BaseModel):
 
 @app.post("/api/strategy_simulation")
 def api_strategy_simulation(req: StrategyRequest):
-    # 株価レンジ（例：Sの±20%を50ステップ）
+
+    pl_curve = []
+    max_profit = -999999
+    max_loss = 999999
+
+    # ★ 初期コスト（プレミアム合計）
+    initial_cost = 0.0
+    for leg in req.legs:
+        if leg.position == "long":
+            initial_cost -= leg.premium * leg.quantity
+        else:
+            initial_cost += leg.premium * leg.quantity
+
+    # ★ 満期時の株価レンジを計算
     S_min = req.S * 0.8
     S_max = req.S * 1.2
     steps = 50
-    step_size = (S_max - S_min) / steps
-
-    pl_curve = []
-    max_profit = None
-    max_loss = None
+    dS = (S_max - S_min) / steps
 
     for i in range(steps + 1):
-        S_T = S_min + step_size * i
+        S_T = S_min + dS * i
         total_pl = 0.0
 
         for leg in req.legs:
-            # 既存の bs_price をそのまま利用
             price = bs_price(S_T, leg.K, req.T, req.r, req.sigma, leg.option_type)
 
             if leg.position == "long":
@@ -295,18 +303,21 @@ def api_strategy_simulation(req: StrategyRequest):
             else:
                 total_pl -= price * leg.quantity
 
+        # ★ 初期コストを反映
+        total_pl += initial_cost
+
         pl_curve.append({"S_T": S_T, "profit": total_pl})
 
-        if max_profit is None or total_pl > max_profit:
-            max_profit = total_pl
-        if max_loss is None or total_pl < max_loss:
-            max_loss = total_pl
+        max_profit = max(max_profit, total_pl)
+        max_loss = min(max_loss, total_pl)
 
-    # 損益分岐点（profitが0に最も近い点）
-    breakeven = min(pl_curve, key=lambda x: abs(x["profit"]))["S_T"]
+    breakeven = None
+    for p in pl_curve:
+        if p["profit"] >= 0:
+            breakeven = p["S_T"]
+            break
 
     return {
-        "strategy_name": "Custom Strategy",
         "max_profit": max_profit,
         "max_loss": max_loss,
         "breakeven": breakeven,
@@ -427,6 +438,12 @@ def index():
 <hr>
 
 <h3>戦略シミュレーション</h3>
+
+<label>プレミアム（買い）:</label>
+<input id="premium_long" type="number" step="0.01">
+
+<label>プレミアム（売り）:</label>
+<input id="premium_short" type="number" step="0.01">
 
 <button onclick="setBullCall()">① ブルコールスプレッドをセット</button>
 <button onclick="setBullPut()">② ブルプットスプレッドをセット</button>
@@ -552,52 +569,63 @@ window.onload = async () => {
 
 function setBullCall(){
     let K = parseFloat(document.getElementById("K").value);
-    K = Math.round(K / 100) * 100;  // ★ 100円刻みに戻す
+    K = Math.round(K / 100) * 100;  // 100円刻みに丸める
+
+    const premiumLong  = parseFloat(document.getElementById("premium_long").value);
+    const premiumShort = parseFloat(document.getElementById("premium_short").value);
 
     window.currentLegs = [
-        { option_type: "call", position: "long",  K: K,        quantity: 1 },
-        { option_type: "call", position: "short", K: K + 1000, quantity: 1 }
+        { option_type: "call", position: "long",  K: K,        quantity: 1, premium: premiumLong },
+        { option_type: "call", position: "short", K: K + 1000, quantity: 1, premium: premiumShort }
     ];
 
-    alert("ブルコールスプレッド（日経225仕様・100円刻み）をセットしました");
+    alert("ブルコールスプレッド（プレミアム対応）をセットしました");
 }
 
 function setBullPut(){
     let K = parseFloat(document.getElementById("K").value);
     K = Math.round(K / 100) * 100;
 
+    const premiumLong  = parseFloat(document.getElementById("premium_long").value);
+    const premiumShort = parseFloat(document.getElementById("premium_short").value);
+
     window.currentLegs = [
-        { option_type: "put", position: "short", K: K,        quantity: 1 },
-        { option_type: "put", position: "long",  K: K - 1000, quantity: 1 }
+        { option_type: "put", position: "short", K: K,        quantity: 1, premium: premiumShort },
+        { option_type: "put", position: "long",  K: K - 1000, quantity: 1, premium: premiumLong }
     ];
 
-    alert("ブルプットスプレッド（日経225仕様・100円刻み）をセットしました");
+    alert("ブルプットスプレッド（プレミアム対応）をセットしました");
 }
 
 function setBearCall(){
     let K = parseFloat(document.getElementById("K").value);
     K = Math.round(K / 100) * 100;
 
+    const premiumLong  = parseFloat(document.getElementById("premium_long").value);
+    const premiumShort = parseFloat(document.getElementById("premium_short").value);
+
     window.currentLegs = [
-        { option_type: "call", position: "short", K: K,        quantity: 1 },
-        { option_type: "call", position: "long",  K: K + 1000, quantity: 1 }
+        { option_type: "call", position: "short", K: K,        quantity: 1, premium: premiumShort },
+        { option_type: "call", position: "long",  K: K + 1000, quantity: 1, premium: premiumLong }
     ];
 
-    alert("ベアコールスプレッド（日経225仕様・100円刻み）をセットしました");
+    alert("ベアコールスプレッド（プレミアム対応）をセットしました");
 }
 
 function setBearPut(){
     let K = parseFloat(document.getElementById("K").value);
     K = Math.round(K / 100) * 100;
 
+    const premiumLong  = parseFloat(document.getElementById("premium_long").value);
+    const premiumShort = parseFloat(document.getElementById("premium_short").value);
+
     window.currentLegs = [
-        { option_type: "put", position: "long",  K: K,        quantity: 1 },
-        { option_type: "put", position: "short", K: K - 1000, quantity: 1 }
+        { option_type: "put", position: "long",  K: K,        quantity: 1, premium: premiumLong },
+        { option_type: "put", position: "short", K: K - 1000, quantity: 1, premium: premiumShort }
     ];
 
-    alert("ベアプットスプレッド（日経225仕様・100円刻み）をセットしました");
+    alert("ベアプットスプレッド（プレミアム対応）をセットしました");
 }
-
 
 async function runXXSimulation(){
     if(!window.currentLegs){
