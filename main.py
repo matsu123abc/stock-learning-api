@@ -251,6 +251,69 @@ def api_iv_strategy(iv: float, S: float, K: float, T: float, option_type: str):
     return gpt_iv_strategy(iv, S, K, T, option_type)
 
 # -----------------------------
+# 戦略シミュレーションAPI
+# -----------------------------
+from pydantic import BaseModel
+from typing import List
+
+class Leg(BaseModel):
+    option_type: str   # "call" or "put"
+    position: str      # "long" or "short"
+    K: float
+    quantity: int = 1
+
+class StrategyRequest(BaseModel):
+    S: float           # 現在の株価
+    T: float           # 満期（年数）
+    r: float           # 金利
+    sigma: float       # IV
+    legs: List[Leg]    # レッグ一覧
+
+
+@app.post("/api/strategy_simulation")
+def api_strategy_simulation(req: StrategyRequest):
+    # 株価レンジ（例：Sの±20%を50ステップ）
+    S_min = req.S * 0.8
+    S_max = req.S * 1.2
+    steps = 50
+    step_size = (S_max - S_min) / steps
+
+    pl_curve = []
+    max_profit = None
+    max_loss = None
+
+    for i in range(steps + 1):
+        S_T = S_min + step_size * i
+        total_pl = 0.0
+
+        for leg in req.legs:
+            # 既存の bs_price をそのまま利用
+            price = bs_price(S_T, leg.K, req.T, req.r, req.sigma, leg.option_type)
+
+            if leg.position == "long":
+                total_pl += price * leg.quantity
+            else:
+                total_pl -= price * leg.quantity
+
+        pl_curve.append({"S_T": S_T, "profit": total_pl})
+
+        if max_profit is None or total_pl > max_profit:
+            max_profit = total_pl
+        if max_loss is None or total_pl < max_loss:
+            max_loss = total_pl
+
+    # 損益分岐点（profitが0に最も近い点）
+    breakeven = min(pl_curve, key=lambda x: abs(x["profit"]))["S_T"]
+
+    return {
+        "strategy_name": "Custom Strategy",
+        "max_profit": max_profit,
+        "max_loss": max_loss,
+        "breakeven": breakeven,
+        "pl_curve": pl_curve
+    }
+
+# -----------------------------
 # UI : 自動計算版 + IV計算 + IV戦略
 # -----------------------------
 @app.get("/", response_class=HTMLResponse)
@@ -360,6 +423,14 @@ def index():
 <button onclick="loadIVStrategy()">IV戦略を表示する</button>
 
 <div id="ivStrategyBox"></div>
+
+<hr>
+
+<h3>戦略シミュレーション</h3>
+
+<button onclick="runSimulation()">戦略シミュレーションを実行する</button>
+
+<div id="simBox"></div>
 
 <script>
 async function loadNK225(){
@@ -473,6 +544,62 @@ window.onload = async () => {
     await loadNK225();
     await loadSummary();
 };
+
+async function runSimulation(){
+    const S = parseFloat(document.getElementById("S").value);
+    const T = parseFloat(document.getElementById("T").value);
+    const r = parseFloat(document.getElementById("r").value);
+    const sigma = parseFloat(document.getElementById("sigma").value);
+
+    // ★ まずは「単純な2レッグ戦略」を例として実装
+    // UIでレッグ選択を追加するのは後でOK
+    const legs = [
+        {
+            option_type: document.getElementById("option_type").value,
+            position: "long",
+            K: parseFloat(document.getElementById("K").value),
+            quantity: 1
+        }
+    ];
+
+    const body = {
+        S: S,
+        T: T,
+        r: r,
+        sigma: sigma,
+        legs: legs
+    };
+
+    const res = await fetch("/api/strategy_simulation", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(body)
+    });
+
+    const data = await res.json();
+
+    if(data.error){
+        document.getElementById("simBox").innerHTML = "シミュレーションでエラーが発生しました。";
+        return;
+    }
+
+    // 損益曲線の一部だけ表示（UI簡易版）
+    let html = `
+<b>【戦略シミュレーション結果】</b><br>
+最大利益: ${data.max_profit}<br>
+最大損失: ${data.max_loss}<br>
+損益分岐点: ${data.breakeven}<br><br>
+<b>損益曲線（最初の10点）</b><br>
+`;
+
+    for(let i=0; i<10; i++){
+        const p = data.pl_curve[i];
+        html += `S=${Math.round(p.S_T)} → 利益=${p.profit}<br>`;
+    }
+
+    document.getElementById("simBox").innerHTML = html;
+}
+
 </script>
 
 </body>
