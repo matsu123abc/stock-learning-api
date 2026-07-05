@@ -443,9 +443,9 @@ def index():
 
 <hr>
 
-<h3>IV戦略（GPT）</h3>
+<h3>IV戦略（AI）</h3>
 
-<button onclick="loadIVStrategy()">IV戦略を表示する</button>
+<button onclick="loadIVStrategy()">IV戦略(AI)を表示する</button>
 
 <div id="ivStrategyBox"></div>
 
