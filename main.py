@@ -476,8 +476,18 @@ def index():
 ストライク K:<br>
 <input id="K" type="number" value="70000">
 
-満期 T（年換算）:<br>
-<input id="T" type="number" value="0.1">
+満期（選択）:<br>
+<select id="T_weeks" onchange="updateT()">
+  <option value="1">1週間</option>
+  <option value="2">2週間</option>
+  <option value="3">3週間</option>
+  <option value="4">4週間</option>
+  <option value="5">5週間</option>
+  <option value="6">6週間</option>
+</select>
+
+<!-- 年換算T（内部用） -->
+<input id="T" type="hidden" value="0.0192">
 
 金利 r:<br>
 <input id="r" type="number" value="0.001">
@@ -597,6 +607,12 @@ price: ${price.price}<br><br>
 <b>【ヒストリカルボラ（20日）】</b><br>
 volatility: ${hv.volatility ?? "データなし"}
     `;
+}
+
+function updateT(){
+    const weeks = parseInt(document.getElementById("T_weeks").value);
+    const T_year = (weeks * 7) / 365;
+    document.getElementById("T").value = T_year.toFixed(4);
 }
 
 async function loadTimeScenario(){
