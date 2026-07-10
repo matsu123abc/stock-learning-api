@@ -269,6 +269,57 @@ def api_iv_strategy(iv: float, S: float, K: float, T: float, option_type: str):
     return gpt_iv_strategy(iv, S, K, T, option_type)
 
 # -----------------------------
+# API: 時間軸シナリオ（days後に株価が何％動いたら？）
+# -----------------------------
+@app.get("/api/time_scenario_bs")
+def time_scenario_bs(
+    S: float,
+    K: float,
+    T: float,
+    r: float,
+    sigma: float,
+    option_type: str,
+    days: int = 7
+):
+    """
+    時間軸シナリオ:
+    - days 日後に株価が +3%, -5%, +10% など動いた場合の理論価格を計算
+    - 残存期間 T は days 分だけ減少する
+    """
+
+    # -----------------------------
+    # 残存期間を更新（年換算）
+    # -----------------------------
+    T_new = T - days / 365
+    if T_new < 0:
+        T_new = 0.00001  # 満期を過ぎないように最低値を設定
+
+    # -----------------------------
+    # 株価変動シナリオ（固定）
+    # -----------------------------
+    scenarios = [
+        ("+3%",  0.03),
+        ("-5%", -0.05),
+        ("+10%", 0.10)
+    ]
+
+    results = []
+
+    for label, rate in scenarios:
+        S_new = S * (1 + rate)
+        price = bs_price(S_new, K, T_new, r, sigma, option_type)
+
+        results.append({
+            "label": f"{days}日後 {label}",
+            "S": S_new,
+            "T_new": T_new,
+            "price": price
+        })
+
+    return {"scenarios": results}
+
+
+# -----------------------------
 # 戦略シミュレーションAPI（手入力レッグ専用）
 # -----------------------------
 from pydantic import BaseModel
@@ -452,6 +503,17 @@ def index():
 
 <hr>
 
+<h3>時間軸シナリオ（例：1週間後）</h3>
+
+日数:<br>
+<input id="days" type="number" value="7">
+
+<button onclick="loadTimeScenario()">時間軸シナリオを計算する</button>
+
+<div id="timeScenarioBox"></div>
+
+<hr>
+
 <h3>IV計算</h3>
 
 市場価格（オプション価格）:<br>
@@ -484,6 +546,8 @@ def index():
 <button onclick="runXXSimulation()">戦略シミュレーションを実行する</button>
 
 <div id="simBox"></div>
+
+</body>
 
 <script>
 async function loadNK225(){
@@ -533,6 +597,37 @@ price: ${price.price}<br><br>
 <b>【ヒストリカルボラ（20日）】</b><br>
 volatility: ${hv.volatility ?? "データなし"}
     `;
+}
+
+async function loadTimeScenario(){
+    const S = document.getElementById("S").value;
+    const K = document.getElementById("K").value;
+    const T = document.getElementById("T").value;
+    const r = document.getElementById("r").value;
+    const sigma = document.getElementById("sigma").value;
+    const option_type = document.getElementById("option_type").value;
+    const days = document.getElementById("days").value;
+
+    const url = `/api/time_scenario_bs?S=${S}&K=${K}&T=${T}&r=${r}&sigma=${sigma}&option_type=${option_type}&days=${days}`;
+    const data = await fetch(url).then(r => r.json());
+
+    let html = "<table border='1' style='width:100%; font-size:22px;'>";
+    html += "<tr><th>シナリオ</th><th>株価</th><th>残存T</th><th>理論価格</th></tr>";
+
+    for(const row of data.scenarios){
+        html += `
+            <tr>
+                <td>${row.label}</td>
+                <td>${row.S.toFixed(2)}</td>
+                <td>${row.T_new.toFixed(4)}</td>
+                <td>${row.price.toFixed(2)}</td>
+            </tr>
+        `;
+    }
+
+    html += "</table>";
+
+    document.getElementById("timeScenarioBox").innerHTML = html;
 }
 
 async function loadScenarioBS(){
