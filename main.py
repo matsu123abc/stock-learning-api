@@ -1,7 +1,6 @@
 import os
 import json
 from math import log, sqrt, exp
-
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from scipy.stats import norm
@@ -119,22 +118,15 @@ def gpt_iv_strategy(iv, S, K, T, option_type):
 - 最大利益・最大損失の具体例（可能な場合）
 - コール買い・コール売りの価格例（例: 1800円、1200円など）
 
-【出力内容】
-1. 最適な戦略（例：ベアコール / ブルプット / ストラドル / ストラングル など）
-2. 専門家としての判断理由（数値を使って 2〜4行）
-3. 初心者向けに、できるだけ噛み砕いた解説（数値を使って 4〜8行）
-4. 初心者が注意すべきポイント（数値を使って 1〜3行）
-5. 読みが外れた場合の「次の一手（Plan B）」を提案（数値を使って 3〜6行）
-
 【出力形式】
 必ず次の JSON のみを返すこと：
 
 {{
   "strategy": "戦略名",
-  "expert_reason": "専門家としての理由を数値入りで2〜4行",
-  "beginner_explanation": "初心者向けに数値入りで4〜8行でわかりやすく解説",
-  "beginner_caution": "初心者が注意すべきポイントを数値入りで1〜3行で",
-  "next_step": "読みが外れた場合の次の一手を数値入りで3〜6行で"
+  "expert_reason": "専門家としての理由",
+  "beginner_explanation": "初心者向け解説",
+  "beginner_caution": "注意点",
+  "next_step": "次の一手"
 }}
 
 【IVデータ】
@@ -183,24 +175,38 @@ def api_greeks(S: float, K: float, T: float, r: float, sigma: float, option_type
 # -----------------------------
 # API: BS Price
 # -----------------------------
-from math import log, sqrt, exp
-from scipy.stats import norm
-
 @app.get("/api/bs_price")
 def bs_price_api(S: float, K: float, T: float, r: float, sigma: float, option_type: str):
-
-    d1 = (log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * sqrt(T))
-    d2 = d1 - sigma * sqrt(T)
-
-    if option_type == "call":
-        price = S * norm.cdf(d1) - K * exp(-r * T) * norm.cdf(d2)
-    else:
-        price = K * exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
-
+    price = bs_price(S, K, T, r, sigma, option_type)
     return {"price": price}
 
 # -----------------------------
-# API: Historical Volatility（安定版）
+# API: シナリオBS価格（±5%、±10%）
+# -----------------------------
+@app.get("/api/scenario_bs")
+def scenario_bs_api(S: float, K: float, T: float, r: float, sigma: float, option_type: str):
+    scenarios = [
+        ("現在値", 0.00),
+        ("+5%",   0.05),
+        ("-5%",  -0.05),
+        ("+10%",  0.10),
+        ("-10%", -0.10),
+    ]
+
+    results = []
+    for label, rate in scenarios:
+        S_scenario = S * (1 + rate)
+        price = bs_price(S_scenario, K, T, r, sigma, option_type)
+        results.append({
+            "label": label,
+            "S": S_scenario,
+            "price": price
+        })
+
+    return {"scenarios": results}
+
+# -----------------------------
+# API: Historical Volatility
 # -----------------------------
 @app.get("/api/vol/historical")
 def api_historical_vol(ticker: str = "^N225", days: int = 20):
@@ -221,7 +227,7 @@ def api_historical_vol(ticker: str = "^N225", days: int = 20):
         return {"error": str(e)}
 
 # -----------------------------
-# 日経225の現在値（共通化）
+# 日経225の現在値
 # -----------------------------
 @app.get("/api/nk225_params")
 def nk225_params():
@@ -263,26 +269,24 @@ def api_iv_strategy(iv: float, S: float, K: float, T: float, option_type: str):
     return gpt_iv_strategy(iv, S, K, T, option_type)
 
 # -----------------------------
-# 戦略シミュレーションAPI
+# 戦略シミュレーションAPI（手入力レッグ専用）
 # -----------------------------
 from pydantic import BaseModel
 from typing import List
 
 class Leg(BaseModel):
-    option_type: str
-    position: str
-    K: float
-    quantity: int = 1
-    premium: float = 0.0   # ★ 必須
-
+    option_type: str   # call / put
+    position: str      # long / short
+    K: float           # strike
+    quantity: int = 1  # 枚数
+    premium: float = 0.0  # プレミアム（買いは支払い、売りは受け取り）
 
 class StrategyRequest(BaseModel):
-    S: float           # 現在の株価
-    T: float           # 満期（年数）
-    r: float           # 金利
-    sigma: float       # IV
-    legs: List[Leg]    # レッグ一覧
-
+    S: float        # 現在の株価
+    T: float        # 満期（年換算）
+    r: float        # 金利
+    sigma: float    # IV
+    legs: List[Leg] # 手入力レッグ一覧
 
 @app.post("/api/strategy_simulation")
 def api_strategy_simulation(req: StrategyRequest):
@@ -291,7 +295,9 @@ def api_strategy_simulation(req: StrategyRequest):
     max_profit = -999999
     max_loss = 999999
 
-    # ★ 初期コスト（プレミアム合計）
+    # -----------------------------
+    # 初期コスト（プレミアム合計）
+    # -----------------------------
     initial_cost = 0.0
     for leg in req.legs:
         if leg.position == "long":
@@ -299,7 +305,9 @@ def api_strategy_simulation(req: StrategyRequest):
         else:
             initial_cost += leg.premium * leg.quantity
 
-    # ★ 満期時の株価レンジを計算
+    # -----------------------------
+    # 満期時の株価レンジ（±20%）
+    # -----------------------------
     S_min = req.S * 0.8
     S_max = req.S * 1.2
     steps = 50
@@ -309,6 +317,9 @@ def api_strategy_simulation(req: StrategyRequest):
         S_T = S_min + dS * i
         total_pl = 0.0
 
+        # -----------------------------
+        # 各レッグの満期価値（BS理論価格）
+        # -----------------------------
         for leg in req.legs:
             price = bs_price(S_T, leg.K, req.T, req.r, req.sigma, leg.option_type)
 
@@ -317,7 +328,7 @@ def api_strategy_simulation(req: StrategyRequest):
             else:
                 total_pl -= price * leg.quantity
 
-        # ★ 初期コストを反映
+        # 初期コストを反映
         total_pl += initial_cost
 
         pl_curve.append({"S_T": S_T, "profit": total_pl})
@@ -325,6 +336,9 @@ def api_strategy_simulation(req: StrategyRequest):
         max_profit = max(max_profit, total_pl)
         max_loss = min(max_loss, total_pl)
 
+    # -----------------------------
+    # 損益分岐点（初めて利益が0以上になる株価）
+    # -----------------------------
     breakeven = None
     for p in pl_curve:
         if p["profit"] >= 0:
@@ -339,7 +353,7 @@ def api_strategy_simulation(req: StrategyRequest):
     }
 
 # -----------------------------
-# UI : 自動計算版 + IV計算 + IV戦略
+# UI : シンプル版（スプレッドセット削除）
 # -----------------------------
 @app.get("/", response_class=HTMLResponse)
 def index():
@@ -389,7 +403,7 @@ def index():
     color:#fff;
     border:none;
   }
-  #resultBox, #ivBox, #ivStrategyBox{
+  #resultBox, #ivBox, #ivStrategyBox, #scenarioBox, #simBox{
     background:var(--panel);
     padding:16px;
     border-radius:10px;
@@ -432,6 +446,12 @@ def index():
 
 <hr>
 
+<h3>株価シナリオ（±5%、±10%）</h3>
+<button onclick="loadScenarioBS()">シナリオ計算を実行する</button>
+<div id="scenarioBox"></div>
+
+<hr>
+
 <h3>IV計算</h3>
 
 市場価格（オプション価格）:<br>
@@ -451,18 +471,15 @@ def index():
 
 <hr>
 
-<h3>戦略シミュレーション</h3>
+<h3>戦略シミュレーション（手入力レッグ専用）</h3>
 
-<label>プレミアム（買い）:</label>
-<input id="premium_long" type="number" step="0.01">
-
-<label>プレミアム（売り）:</label>
-<input id="premium_short" type="number" step="0.01">
-
-<button onclick="setBullCall()">① ブルコールスプレッドをセット</button>
-<button onclick="setBullPut()">② ブルプットスプレッドをセット</button>
-<button onclick="setBearCall()">③ ベアコールスプレッドをセット</button>
-<button onclick="setBearPut()">④ ベアプットスプレッドをセット</button>
+<b>レッグ入力（JSON形式）</b><br>
+<textarea id="legsInput" style="width:100%; height:200px; font-size:20px;">
+[
+  { "option_type": "call", "position": "long",  "K": 70000, "quantity": 1, "premium": 1800 },
+  { "option_type": "call", "position": "short", "K": 71000, "quantity": 1, "premium": 1200 }
+]
+</textarea>
 
 <button onclick="runXXSimulation()">戦略シミュレーションを実行する</button>
 
@@ -516,6 +533,35 @@ price: ${price.price}<br><br>
 <b>【ヒストリカルボラ（20日）】</b><br>
 volatility: ${hv.volatility ?? "データなし"}
     `;
+}
+
+async function loadScenarioBS(){
+    const S = document.getElementById("S").value;
+    const K = document.getElementById("K").value;
+    const T = document.getElementById("T").value;
+    const r = document.getElementById("r").value;
+    const sigma = document.getElementById("sigma").value;
+    const option_type = document.getElementById("option_type").value;
+
+    const url = `/api/scenario_bs?S=${S}&K=${K}&T=${T}&r=${r}&sigma=${sigma}&option_type=${option_type}`;
+    const data = await fetch(url).then(r => r.json());
+
+    let html = "<table border='1' style='width:100%; font-size:22px;'>";
+    html += "<tr><th>シナリオ</th><th>株価</th><th>理論価格</th></tr>";
+
+    for(const row of data.scenarios){
+        html += `
+            <tr>
+                <td>${row.label}</td>
+                <td>${row.S.toFixed(2)}</td>
+                <td>${row.price.toFixed(2)}</td>
+            </tr>
+        `;
+    }
+
+    html += "</table>";
+
+    document.getElementById("scenarioBox").innerHTML = html;
 }
 
 async function loadIV(){
@@ -576,74 +622,13 @@ ${strategy.next_step}
     `;
 }
 
-window.onload = async () => {
-    await loadNK225();
-    await loadSummary();
-};
-
-function setBullCall(){
-    let K = parseFloat(document.getElementById("K").value);
-    K = Math.round(K / 100) * 100;  // 100円刻みに丸める
-
-    const premiumLong  = parseFloat(document.getElementById("premium_long").value);
-    const premiumShort = parseFloat(document.getElementById("premium_short").value);
-
-    window.currentLegs = [
-        { option_type: "call", position: "long",  K: K,        quantity: 1, premium: premiumLong },
-        { option_type: "call", position: "short", K: K + 1000, quantity: 1, premium: premiumShort }
-    ];
-
-    alert("ブルコールスプレッド（プレミアム対応）をセットしました");
-}
-
-function setBullPut(){
-    let K = parseFloat(document.getElementById("K").value);
-    K = Math.round(K / 100) * 100;
-
-    const premiumLong  = parseFloat(document.getElementById("premium_long").value);
-    const premiumShort = parseFloat(document.getElementById("premium_short").value);
-
-    window.currentLegs = [
-        { option_type: "put", position: "short", K: K,        quantity: 1, premium: premiumShort },
-        { option_type: "put", position: "long",  K: K - 1000, quantity: 1, premium: premiumLong }
-    ];
-
-    alert("ブルプットスプレッド（プレミアム対応）をセットしました");
-}
-
-function setBearCall(){
-    let K = parseFloat(document.getElementById("K").value);
-    K = Math.round(K / 100) * 100;
-
-    const premiumLong  = parseFloat(document.getElementById("premium_long").value);
-    const premiumShort = parseFloat(document.getElementById("premium_short").value);
-
-    window.currentLegs = [
-        { option_type: "call", position: "short", K: K,        quantity: 1, premium: premiumShort },
-        { option_type: "call", position: "long",  K: K + 1000, quantity: 1, premium: premiumLong }
-    ];
-
-    alert("ベアコールスプレッド（プレミアム対応）をセットしました");
-}
-
-function setBearPut(){
-    let K = parseFloat(document.getElementById("K").value);
-    K = Math.round(K / 100) * 100;
-
-    const premiumLong  = parseFloat(document.getElementById("premium_long").value);
-    const premiumShort = parseFloat(document.getElementById("premium_short").value);
-
-    window.currentLegs = [
-        { option_type: "put", position: "long",  K: K,        quantity: 1, premium: premiumLong },
-        { option_type: "put", position: "short", K: K - 1000, quantity: 1, premium: premiumShort }
-    ];
-
-    alert("ベアプットスプレッド（プレミアム対応）をセットしました");
-}
-
 async function runXXSimulation(){
-    if(!window.currentLegs){
-        document.getElementById("simBox").innerHTML = "戦略がセットされていません。";
+    let legsJson = document.getElementById("legsInput").value;
+
+    try{
+        window.currentLegs = JSON.parse(legsJson);
+    }catch(e){
+        document.getElementById("simBox").innerHTML = "レッグ入力がJSONとして読み込めません。";
         return;
     }
 
@@ -673,6 +658,10 @@ ${data.pl_curve.slice(0,10).map(p => `S=${Math.round(p.S_T)} → 利益=${p.prof
     `;
 }
 
+window.onload = async () => {
+    await loadNK225();
+    await loadSummary();
+};
 </script>
 
 </body>
