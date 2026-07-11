@@ -263,12 +263,13 @@ def bs_price_api(S: float, K: float, T: float, r: float, sigma: float, option_ty
 # -----------------------------
 @app.get("/api/scenario_bs")
 def scenario_bs_api(S: float, K: float, T: float, r: float, sigma: float, option_type: str):
+    # ★ シナリオを ±3%、±5% に変更
     scenarios = [
         ("現在値", 0.00),
+        ("+3%",   0.03),
+        ("-3%",  -0.03),
         ("+5%",   0.05),
         ("-5%",  -0.05),
-        ("+10%",  0.10),
-        ("-10%", -0.10),
     ]
 
     results = []
@@ -433,12 +434,12 @@ def time_scenario_bs(
     if T_new < 0:
         T_new = 0.00001
 
-    # 株価変動シナリオ（±5%、±10%）
+    # 株価変動シナリオ（±3%、±5%）
     scenarios = [
-        ("+5%",   0.05),
-        ("-5%",  -0.05),
-        ("+10%",  0.10),
-        ("-10%", -0.10),
+        ("+3%",  0.03),
+        ("-3%", -0.03),
+        ("+5%",  0.05),
+        ("-5%", -0.05),
     ]
 
     results = []
@@ -455,7 +456,6 @@ def time_scenario_bs(
         })
 
     return {"scenarios": results}
-
 
 # -----------------------------
 # 戦略シミュレーションAPI（手入力レッグ専用）
@@ -641,7 +641,7 @@ def index():
 
 <hr>
 
-<h3>株価シナリオ（±5%、±10%）</h3>
+<h3>株価シナリオ（±3%、±5%）</h3>
 <button onclick="loadScenarioBS()">シナリオ計算を実行する</button>
 <div id="scenarioBox"></div>
 
