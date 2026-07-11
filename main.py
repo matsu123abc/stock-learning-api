@@ -104,7 +104,6 @@ def gpt_iv_strategy(iv, S, K, T, option_type, delta, gamma, theta, vega, rho, bs
         azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
     )
 
-
     prompt = f"""
 あなたはプロのオプション戦略アナリストです。
 
@@ -137,25 +136,21 @@ price: {bs_price_value}
 {time_scenario_text}
 
 【重要】
-以下のルールを厳守してください：
-
 - JSON 以外の文章を一切書かない
-- コードブロック（```）を絶対に使わない
+- コードブロック（```）禁止
 - JSON の前後に説明文を絶対に書かない
-- JSON のキーは必ず以下の5つだけにする：
-  strategy, expert_reason, beginner_explanation, beginner_caution, next_step
-- JSON が壊れている場合は、正しい JSON を再生成する
+- JSON が壊れていたら再生成する
 
 【出力形式】
 次の JSON のみを返す：
 
-{
+{{
   "strategy": "",
   "expert_reason": "",
   "beginner_explanation": "",
   "beginner_caution": "",
   "next_step": ""
-}
+}}
 """
   
     try:
