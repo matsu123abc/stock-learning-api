@@ -343,37 +343,77 @@ def api_iv(S: float,
 # API: IV戦略（GPT）  <-- 差し替え
 # -----------------------------
 @app.get("/api/iv_strategy")
-def api_iv_strategy(iv: float, S: float, K: float, T: float, option_type: str):
+def api_iv_strategy(iv: float, S: float, K: float, T: float, option_type: str, r: float = 0.001, sigma: float = 0.3):
+    try:
+        # 1) Greeks を計算（フロントから渡された r, sigma を使う）
+        g = greeks(S, K, T, r, sigma, option_type)
+        delta = g["delta"]
+        gamma = g["gamma"]
+        theta = g["theta"]
+        vega  = g["vega"]
+        rho   = g["rho"]
+        bs_price_value = g["price"]
 
-    g = greeks(S, K, T, 0.001, 0.3, option_type)
+        # 2) シナリオテキスト（簡易自動生成）
+        scenarios = [
+            ("現在値", 0.00),
+            ("+5%",   0.05),
+            ("-5%",  -0.05),
+            ("+10%",  0.10),
+            ("-10%", -0.10),
+        ]
+        scenario_text = "\n".join([f"{label}: rate={rate}" for label, rate in scenarios])
+        time_scenario_text = "7日後: +5%/-5%/+10%/-10% のシナリオ"
 
-    delta = g["delta"]
-    gamma = g["gamma"]
-    theta = g["theta"]
-    vega  = g["vega"]
-    rho   = g["rho"]
+        # 3) GPT戦略を生成（外部呼び出し）
+        result = gpt_iv_strategy(
+            iv, S, K, T, option_type,
+            delta, gamma, theta, vega, rho,
+            bs_price_value,
+            scenario_text,
+            time_scenario_text
+        )
 
-    bs_price_value = g["price"]
+        # 4) result の型チェックとエラーハンドリング
+        if result is None:
+            return {"error": "gpt_returned_none", "message": "gpt_iv_strategy が None を返しました"}
 
-    scenario_text = "..."
-    time_scenario_text = "..."
+        if isinstance(result, dict) and result.get("error"):
+            # GPT内部でエラーが返ってきた場合はそのまま返す（デバッグ用）
+            return {"error": "gpt_error", "detail": result}
 
-    # GPT戦略を生成
-    result = gpt_iv_strategy(
-        iv, S, K, T, option_type,
-        delta, gamma, theta, vega, rho,
-        bs_price_value,
-        scenario_text,
-        time_scenario_text
-    )
+        # 5) strategy を安全に取り出す
+        strategy_name = ""
+        if isinstance(result, dict):
+            strategy_name = result.get("strategy", "") or ""
+        else:
+            # 文字列などが返ってきた場合はログに残してフォールバック
+            strategy_name = str(result)
 
-    # ★ 戦略名からレッグ構成を生成
-    legs = strategy_to_legs(result["strategy"], S, K, iv)
+        # 6) 戦略名から自動で legs を生成（必ず配列を返す）
+        legs = strategy_to_legs(strategy_name, S, K, iv) or []
+        # GPTが既に legs を返しているならそれを優先
+        if isinstance(result, dict) and isinstance(result.get("legs"), list) and len(result.get("legs")) > 0:
+            legs = result.get("legs")
 
-    # ★ レッグを結果に追加
-    result["legs"] = legs
+        # 7) 最終レスポンスを組み立てる（常に legs を含める）
+        response = {
+            "strategy": strategy_name,
+            "expert_reason": (result.get("expert_reason") if isinstance(result, dict) else "") or "",
+            "beginner_explanation": (result.get("beginner_explanation") if isinstance(result, dict) else "") or "",
+            "beginner_caution": (result.get("beginner_caution") if isinstance(result, dict) else "") or "",
+            "next_step": (result.get("next_step") if isinstance(result, dict) else "") or "",
+            "legs": legs
+        }
 
-    return result
+        return response
+
+    except Exception as e:
+        # 本番では詳細スタックはログに出す。ここでは簡潔なエラーを返す
+        import traceback
+        tb = traceback.format_exc()
+        print("api_iv_strategy exception:", tb)
+        return {"error": "server_exception", "message": str(e)}
 
 # -----------------------------
 # API: 時間軸シナリオ（±5%、±10%）
