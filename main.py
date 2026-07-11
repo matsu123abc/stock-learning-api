@@ -481,12 +481,10 @@ class StrategyRequest(BaseModel):
 def api_strategy_simulation(req: StrategyRequest):
 
     pl_curve = []
-    max_profit = -999999
-    max_loss = 999999
+    max_profit = -float("inf")
+    max_loss = float("inf")
 
-    # -----------------------------
     # 初期コスト（プレミアム合計）
-    # -----------------------------
     initial_cost = 0.0
     for leg in req.legs:
         if leg.position == "long":
@@ -494,9 +492,7 @@ def api_strategy_simulation(req: StrategyRequest):
         else:
             initial_cost += leg.premium * leg.quantity
 
-    # -----------------------------
     # 満期時の株価レンジ（±20%）
-    # -----------------------------
     S_min = req.S * 0.8
     S_max = req.S * 1.2
     steps = 50
@@ -506,18 +502,20 @@ def api_strategy_simulation(req: StrategyRequest):
         S_T = S_min + dS * i
         total_pl = 0.0
 
-        # -----------------------------
-        # 各レッグの満期価値（BS理論価格）
-        # -----------------------------
+        # 各レッグの満期価値（内在価値で計算）
         for leg in req.legs:
-            price = bs_price(S_T, leg.K, req.T, req.r, req.sigma, leg.option_type)
+            if leg.option_type == "call":
+                payoff = max(S_T - leg.K, 0.0)
+            else:  # put
+                payoff = max(leg.K - S_T, 0.0)
 
+            # ロングは payoff を受け取り、ショートは payoff を支払う
             if leg.position == "long":
-                total_pl += price * leg.quantity
+                total_pl += payoff * leg.quantity
             else:
-                total_pl -= price * leg.quantity
+                total_pl -= payoff * leg.quantity
 
-        # 初期コストを反映
+        # 初期コストを反映（プレミアムの支払い/受取り）
         total_pl += initial_cost
 
         pl_curve.append({"S_T": S_T, "profit": total_pl})
@@ -525,9 +523,7 @@ def api_strategy_simulation(req: StrategyRequest):
         max_profit = max(max_profit, total_pl)
         max_loss = min(max_loss, total_pl)
 
-    # -----------------------------
-    # 損益分岐点（初めて利益が0以上になる株価）
-    # -----------------------------
+    # 損益分岐点（最初に profit >= 0 になる株価）
     breakeven = None
     for p in pl_curve:
         if p["profit"] >= 0:
