@@ -814,6 +814,9 @@ async function loadIVStrategy(){
         return;
     }
 
+    // ★ AI戦略を保存（これが無いと runStrategySimulation が動かない）
+    window.lastStrategy = strategy;
+
     document.getElementById("ivStrategyBox").innerHTML = `
 <b>【IV戦略】</b><br>
 戦略: ${strategy.strategy}<br><br>
