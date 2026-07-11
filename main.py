@@ -96,7 +96,8 @@ def greeks(S, K, T, r, sigma, option_type):
 # -----------------------------
 # GPT: IV戦略生成
 # -----------------------------
-def gpt_iv_strategy(iv, S, K, T, option_type):
+def gpt_iv_strategy(iv, S, K, T, option_type, delta, gamma, theta, vega, rho, bs_price_value, scenario_text, time_scenario_text):
+
     client = AzureOpenAI(
         api_key=os.getenv("AZURE_OPENAI_API_KEY"),
         api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
@@ -286,7 +287,32 @@ def api_iv(S: float,
 # -----------------------------
 @app.get("/api/iv_strategy")
 def api_iv_strategy(iv: float, S: float, K: float, T: float, option_type: str):
-    return gpt_iv_strategy(iv, S, K, T, option_type)
+
+    # まず Greeks を計算
+    g = greeks(S, K, T, 0.001, 0.3, option_type)
+
+    delta = g["delta"]
+    gamma = g["gamma"]
+    theta = g["theta"]
+    vega  = g["vega"]
+    rho   = g["rho"]
+
+    # BS理論価格
+    bs_price_value = g["price"]
+
+    # シナリオ（±5%、±10%）
+    scenario_text = "..."  # ← ここは後で自動生成
+
+    # 時間軸シナリオ（±5%、±10%）
+    time_scenario_text = "..."  # ← ここも後で自動生成
+
+    return gpt_iv_strategy(
+        iv, S, K, T, option_type,
+        delta, gamma, theta, vega, rho,
+        bs_price_value,
+        scenario_text,
+        time_scenario_text
+    )
 
 # -----------------------------
 # API: 時間軸シナリオ（±5%、±10%）
