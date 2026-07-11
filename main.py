@@ -902,9 +902,6 @@ async function runXXSimulation(){
 最大損失: ${data.max_loss}<br>
 損益分岐点: ${data.breakeven}<br><br>
 
-<b>損益曲線（最初の10点）</b><br>
-${data.pl_curve.slice(0,10).map(p => `S=${Math.round(p.S_T)} → 利益=${p.profit}`).join("<br>")}
-    `;
 }
 
 window.onload = async () => {
