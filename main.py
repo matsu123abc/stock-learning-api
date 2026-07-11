@@ -103,12 +103,14 @@ def gpt_iv_strategy(iv, S, K, T, option_type):
         azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
     )
 
+
     prompt = f"""
 あなたはプロのオプション戦略アナリストです。
-以下の実データ（Greeks、BS理論価格、IV、株価シナリオ、時間軸シナリオ）を使って、
-最適な戦略を「数値に基づいて」判断してください。
 
-【現在の市場データ】
+以下のデータを使って戦略を判断してください。
+必ず「数値に基づく理由」を書いてください。
+
+【市場データ】
 株価 S: {S}
 ストライク K: {K}
 満期 T: {T}
@@ -117,7 +119,7 @@ def gpt_iv_strategy(iv, S, K, T, option_type):
 【IV】
 IV: {iv}
 
-【Greeks（実測値）】
+【Greeks】
 delta: {delta}
 gamma: {gamma}
 theta: {theta}
@@ -133,24 +135,25 @@ price: {bs_price_value}
 【時間軸シナリオ（±5%、±10%）】
 {time_scenario_text}
 
-【戦略判断ルール】
-- IVが高い場合（30%以上）：売り戦略またはスプレッド戦略を優先
-- IVが低い場合（20%以下）：買い戦略を優先
-- deltaが低い（0.3以下）：OTMでリスク高 → スプレッド推奨
-- thetaが大きくマイナス：買いは不利 → 売り戦略推奨
-- vegaが大きい：IV変動に敏感 → IV低い時に買い、IV高い時に売り
-- シナリオで上昇時の利益が大きい → コール系戦略
-- シナリオで下落時の利益が大きい → プット系戦略
+【重要】
+以下のルールを厳守してください：
+
+- JSON 以外の文章を一切書かない
+- コードブロック（```）を絶対に使わない
+- JSON の前後に説明文を絶対に書かない
+- JSON のキーは必ず以下の5つだけにする：
+  strategy, expert_reason, beginner_explanation, beginner_caution, next_step
+- JSON が壊れている場合は、正しい JSON を再生成する
 
 【出力形式】
-次の JSON のみを返してください：
+次の JSON のみを返す：
 
 {
-  "strategy": "戦略名",
-  "expert_reason": "専門家としての理由（必ず数値を使う）",
-  "beginner_explanation": "初心者向けの解説",
-  "beginner_caution": "注意点",
-  "next_step": "次の一手"
+  "strategy": "",
+  "expert_reason": "",
+  "beginner_explanation": "",
+  "beginner_caution": "",
+  "next_step": ""
 }
 """
   
