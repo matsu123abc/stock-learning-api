@@ -343,35 +343,22 @@ def api_iv(S: float,
 # API: IV戦略（GPT）  <-- 差し替え
 # -----------------------------
 @app.get("/api/iv_strategy")
-def api_iv_strategy(iv: float, S: float, K: float, T: float, option_type: str, r: float = 0.001, sigma: float = 0.3):
-    """
-    iv, S, K, T, option_type を受け取り GPT に戦略を生成させる。
-    返却 JSON に自動生成した legs を追加して返す（フロントでそのままシミュレーション可能にする）。
-    """
+def api_iv_strategy(iv: float, S: float, K: float, T: float, option_type: str):
 
-    # 1) Greeks をフロントから渡された r, sigma で計算
-    g = greeks(S, K, T, r, sigma, option_type)
+    g = greeks(S, K, T, 0.001, 0.3, option_type)
+
     delta = g["delta"]
     gamma = g["gamma"]
     theta = g["theta"]
     vega  = g["vega"]
     rho   = g["rho"]
+
     bs_price_value = g["price"]
 
-    # 2) シナリオテキスト（簡易自動生成）
-    scenarios = [
-        ("現在値", 0.00),
-        ("+5%",   0.05),
-        ("-5%",  -0.05),
-        ("+10%",  0.10),
-        ("-10%", -0.10),
-    ]
-    scenario_text = "\n".join([f"{label}: rate={rate}" for label, rate in scenarios])
+    scenario_text = "..."
+    time_scenario_text = "..."
 
-    # 3) 時間軸シナリオ（簡易）
-    time_scenario_text = "7日後: +5%/-5%/+10%/-10% のシナリオ"
-
-    # 4) GPT に戦略を生成させる
+    # GPT戦略を生成
     result = gpt_iv_strategy(
         iv, S, K, T, option_type,
         delta, gamma, theta, vega, rho,
@@ -380,29 +367,13 @@ def api_iv_strategy(iv: float, S: float, K: float, T: float, option_type: str, r
         time_scenario_text
     )
 
-    # 5) 戦略名から自動で legs を生成して結果に追加する
-    #    strategy_to_legs は既に定義済み（存在しない戦略は [] を返すようにしておく）
-    try:
-        strategy_name = result.get("strategy", "") if isinstance(result, dict) else ""
-    except Exception:
-        strategy_name = ""
+    # ★ 戦略名からレッグ構成を生成
+    legs = strategy_to_legs(result["strategy"], S, K, iv)
 
-    legs = strategy_to_legs(strategy_name, S, K, iv) or []
-    # もし GPT が既に legs を返しているならそれを優先する
-    if isinstance(result, dict) and result.get("legs"):
-        legs = result.get("legs")
+    # ★ レッグを結果に追加
+    result["legs"] = legs
 
-    # 6) 最終レスポンスを組み立てる
-    response = {
-        "strategy": result.get("strategy", "") if isinstance(result, dict) else "",
-        "expert_reason": result.get("expert_reason", "") if isinstance(result, dict) else "",
-        "beginner_explanation": result.get("beginner_explanation", "") if isinstance(result, dict) else "",
-        "beginner_caution": result.get("beginner_caution", "") if isinstance(result, dict) else "",
-        "next_step": result.get("next_step", "") if isinstance(result, dict) else "",
-        "legs": legs
-    }
-
-    return response
+    return result
 
 # -----------------------------
 # API: 時間軸シナリオ（±5%、±10%）
