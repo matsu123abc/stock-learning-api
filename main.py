@@ -94,9 +94,43 @@ def greeks(S, K, T, r, sigma, option_type):
     }
 
 # -----------------------------
+# AI戦略名をレッグ構成に変換する
+# -----------------------------
+def strategy_to_legs(strategy_name, S, K, iv):
+    """
+    AI戦略名をレッグ構成に変換する
+    """
+    if strategy_name == "bullish call spread":
+        return [
+            { "option_type": "call", "position": "long",  "K": K,       "quantity": 1, "premium": 0 },
+            { "option_type": "call", "position": "short", "K": K + 1000, "quantity": 1, "premium": 0 }
+        ]
+
+    if strategy_name == "bear put spread":
+        return [
+            { "option_type": "put", "position": "long",  "K": K,       "quantity": 1, "premium": 0 },
+            { "option_type": "put", "position": "short", "K": K - 1000, "quantity": 1, "premium": 0 }
+        ]
+
+    if strategy_name == "long call":
+        return [
+            { "option_type": "call", "position": "long", "K": K, "quantity": 1, "premium": 0 }
+        ]
+
+    if strategy_name == "long put":
+        return [
+            { "option_type": "put", "position": "long", "K": K, "quantity": 1, "premium": 0 }
+        ]
+
+    return None
+
+# -----------------------------
 # GPT: IV戦略生成
 # -----------------------------
-def gpt_iv_strategy(iv, S, K, T, option_type, delta, gamma, theta, vega, rho, bs_price_value, scenario_text, time_scenario_text):
+def gpt_iv_strategy(iv, S, K, T, option_type,
+                   delta, gamma, theta, vega, rho,
+                   bs_price_value,
+                   scenario_text, time_scenario_text):
 
     client = AzureOpenAI(
         api_key=os.getenv("AZURE_OPENAI_API_KEY"),
@@ -104,6 +138,11 @@ def gpt_iv_strategy(iv, S, K, T, option_type, delta, gamma, theta, vega, rho, bs
         azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
     )
 
+    # None対策
+    scenario_text = str(scenario_text)
+    time_scenario_text = str(time_scenario_text)
+
+    # f-string の {} をすべて {{ }} にエスケープ
     prompt = f"""
 あなたはプロのオプション戦略アナリストです。
 
@@ -152,19 +191,28 @@ price: {bs_price_value}
   "next_step": ""
 }}
 """
-  
+
     try:
         res = client.chat.completions.create(
             model=os.getenv("AZURE_OPENAI_DEPLOYMENT"),
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
         )
+
         raw = res.choices[0].message.content.strip()
 
+        # JSON抽出ロジック強化
         json_start = raw.find("{")
         json_end = raw.rfind("}") + 1
+
         if json_start == -1 or json_end == -1:
-            return {"error": "no_json_found", "raw": raw}
+            return {
+                "strategy": "error",
+                "expert_reason": "JSONが見つかりませんでした",
+                "beginner_explanation": raw,
+                "beginner_caution": "",
+                "next_step": ""
+            }
 
         json_text = raw[json_start:json_end]
         json_text = json_text.replace("```json", "").replace("```", "").strip()
@@ -172,14 +220,28 @@ price: {bs_price_value}
         try:
             data = json.loads(json_text)
         except Exception as e:
-            return {"error": "json_parse_error", "exception": str(e), "raw": raw, "json_text": json_text}
+            return {
+                "strategy": "error",
+                "expert_reason": "JSON解析エラー",
+                "beginner_explanation": str(e),
+                "beginner_caution": json_text,
+                "next_step": ""
+            }
 
         keys = ["strategy", "expert_reason", "beginner_explanation", "beginner_caution", "next_step"]
         safe_data = {k: data.get(k, "") for k in keys}
+
         return safe_data
 
     except Exception as e:
-        return {"error": "api_exception", "exception": str(e)}
+        return {
+            "strategy": "error",
+            "expert_reason": "API例外",
+            "beginner_explanation": str(e),
+            "beginner_caution": "",
+            "next_step": ""
+        }
+
 
 # -----------------------------
 # API: Greeks
@@ -573,6 +635,10 @@ def index():
 
 <div id="ivStrategyBox"></div>
 
+<!-- ★ 追加：AI戦略を戦略シミュレーションへ連動 -->
+<button onclick="runStrategySimulation()">AI戦略をシミュレーションする</button>
+<div id="aiSimBox"></div>
+
 <hr>
 
 <h3>戦略シミュレーション（手入力レッグ専用）</h3>
@@ -590,6 +656,7 @@ def index():
 <div id="simBox"></div>
 
 </body>
+
 
 <script>
 async function loadNK225(){
@@ -762,6 +829,44 @@ ${strategy.beginner_caution}<br><br>
 
 <b>次の一手（Plan B）</b><br>
 ${strategy.next_step}
+    `;
+}
+
+async function runStrategySimulation(){
+    const strategy = window.lastStrategy;  // AI戦略のJSON
+    if(!strategy || !strategy.legs){
+        alert("AI戦略がまだ生成されていません");
+        return;
+    }
+
+    const S = parseFloat(document.getElementById("S").value);
+    const T = parseFloat(document.getElementById("T").value);
+    const r = parseFloat(document.getElementById("r").value);
+    const sigma = parseFloat(document.getElementById("sigma").value);
+
+    const body = {
+        S, T, r, sigma,
+        legs: strategy.legs
+    };
+
+    const res = await fetch("/api/strategy_simulation", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(body)
+    });
+
+    const data = await res.json();
+
+    document.getElementById("simBox").innerHTML = `
+<b>【AI戦略シミュレーション】</b><br>
+戦略: ${strategy.strategy}<br><br>
+
+最大利益: ${data.max_profit}<br>
+最大損失: ${data.max_loss}<br>
+損益分岐点: ${data.breakeven}<br><br>
+
+<b>損益曲線（最初の10点）</b><br>
+${data.pl_curve.slice(0,10).map(p => `S=${Math.round(p.S_T)} → 利益=${p.profit}`).join("<br>")}
     `;
 }
 
