@@ -142,54 +142,37 @@ def gpt_iv_strategy(iv, S, K, T, option_type,
     scenario_text = str(scenario_text)
     time_scenario_text = str(time_scenario_text)
 
-    # f-string の {} をすべて {{ }} にエスケープ
     prompt = f"""
-あなたはプロのオプション戦略アナリストです。
+あなたはオプション戦略の専門家であり、同時に初心者向けの講師でもあります。
 
-以下のデータを使って戦略を判断してください。
-必ず「数値に基づく理由」を書いてください。
+以下の IV（インプライドボラティリティ）とオプション条件を分析し、
+必ず「数値を使った根拠」を含めて説明してください。
 
-【市場データ】
+【必ず使う数値】
+- IV（例: 0.21 → 21%）
+- BS理論価格（price）
+- delta / gamma / theta / vega / rho
+- 株価 S と ストライク K の位置関係
+- 満期 T（年換算）
+- 最大利益・最大損失の具体例（可能な場合）
+
+【出力形式】
+必ず次の JSON のみを返すこと：
+
+{{
+  "strategy": "戦略名",
+  "expert_reason": "専門家としての理由",
+  "beginner_explanation": "初心者向け解説",
+  "beginner_caution": "注意点",
+  "next_step": "次の一手"
+}}
+
+【IVデータ】
+IV: {iv}
 株価 S: {S}
 ストライク K: {K}
 満期 T: {T}
 オプションタイプ: {option_type}
-
-【IV】
-IV: {iv}
-
-【Greeks】
-delta: {delta}
-gamma: {gamma}
-theta: {theta}
-vega: {vega}
-rho: {rho}
-
-【BS理論価格】
-price: {bs_price_value}
-
-【株価シナリオ（±5%、±10%）】
-{scenario_text}
-
-【時間軸シナリオ（±5%、±10%）】
-{time_scenario_text}
-
-【重要】
-- JSON 以外の文章を一切書かない
-- コードブロック（```）禁止
-- JSON の前後に説明文を絶対に書かない
-- JSON が壊れていたら再生成する
-
-【出力形式】
-次の JSON のみを返す：
-
-{{
-  "strategy": "",
-  "expert_reason": "",
-  "beginner_explanation": "",
-  "beginner_caution": "",
-  "next_step": ""
-}}
 """
 
     try:
