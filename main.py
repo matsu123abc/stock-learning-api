@@ -675,10 +675,6 @@ def index():
 
 <div id="ivStrategyBox"></div>
 
-<!-- ★ 追加：AI戦略を戦略シミュレーションへ連動 -->
-<button onclick="runStrategySimulation()">AI戦略をシミュレーションする</button>
-<div id="aiSimBox"></div>
-
 <hr>
 
 <h3>戦略シミュレーション（手入力レッグ専用）</h3>
@@ -872,44 +868,6 @@ ${strategy.beginner_caution}<br><br>
 
 <b>次の一手（Plan B）</b><br>
 ${strategy.next_step}
-    `;
-}
-
-async function runStrategySimulation(){
-    const strategy = window.lastStrategy;  // AI戦略のJSON
-    if(!strategy || !strategy.legs){
-        alert("AI戦略がまだ生成されていません");
-        return;
-    }
-
-    const S = parseFloat(document.getElementById("S").value);
-    const T = parseFloat(document.getElementById("T").value);
-    const r = parseFloat(document.getElementById("r").value);
-    const sigma = parseFloat(document.getElementById("sigma").value);
-
-    const body = {
-        S, T, r, sigma,
-        legs: strategy.legs
-    };
-
-    const res = await fetch("/api/strategy_simulation", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(body)
-    });
-
-    const data = await res.json();
-
-    document.getElementById("simBox").innerHTML = `
-<b>【AI戦略シミュレーション】</b><br>
-戦略: ${strategy.strategy}<br><br>
-
-最大利益: ${data.max_profit}<br>
-最大損失: ${data.max_loss}<br>
-損益分岐点: ${data.breakeven}<br><br>
-
-<b>損益曲線（最初の10点）</b><br>
-${data.pl_curve.slice(0,10).map(p => `S=${Math.round(p.S_T)} → 利益=${p.profit}`).join("<br>")}
     `;
 }
 
