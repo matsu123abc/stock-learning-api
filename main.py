@@ -143,36 +143,54 @@ def gpt_iv_strategy(iv, S, K, T, option_type,
     time_scenario_text = str(time_scenario_text)
 
     prompt = f"""
-あなたはオプション戦略の専門家であり、同時に初心者向けの講師でもあります。
+あなたはプロのオプション戦略アナリストです。
+以下の市場データ・Greeks・シナリオ分析を総合評価し、
+現在の市場環境に対して最も合理的なオプション戦略を提示してください。
 
-以下の IV（インプライドボラティリティ）とオプション条件を分析し、
-必ず「数値を使った根拠」を含めて説明してください。
+必ず以下を満たしてください：
+- 「数値に基づく理由」を必ず記述する（感覚的・抽象的な表現は禁止）
+- 市場環境（IV水準、Greeks、シナリオ）を踏まえた論理的な戦略選択を行う
+- 過度に一般的な説明は禁止（具体的な数値と因果関係を使う）
+- JSON 以外の文章を一切書かない
+- コードブロック（```）禁止
+- JSON の前後に説明文を絶対に書かない
+- JSON が壊れていたら再生成する
 
-【必ず使う数値】
-- IV（例: 0.21 → 21%）
-- BS理論価格（price）
-- delta / gamma / theta / vega / rho
-- 株価 S と ストライク K の位置関係
-- 満期 T（年換算）
-- 最大利益・最大損失の具体例（可能な場合）
-
-【出力形式】
-必ず次の JSON のみを返すこと：
-
-{{
-  "strategy": "戦略名",
-  "expert_reason": "専門家としての理由",
-  "beginner_explanation": "初心者向け解説",
-  "beginner_caution": "注意点",
-  "next_step": "次の一手"
-}}
-
-【IVデータ】
-IV: {iv}
+【市場データ】
 株価 S: {S}
 ストライク K: {K}
 満期 T: {T}
 オプションタイプ: {option_type}
+
+【IV】
+IV: {iv}
+
+【Greeks】
+delta: {delta}
+gamma: {gamma}
+theta: {theta}
+vega: {vega}
+rho: {rho}
+
+【BS理論価格】
+price: {bs_price_value}
+
+【株価シナリオ（±3%、±5%）】
+{scenario_text}
+
+【時間軸シナリオ（±3%、±5%）】
+{time_scenario_text}
+
+【出力形式】
+次の JSON のみを返す：
+
+{{
+  "strategy": "",
+  "expert_reason": "",
+  "beginner_explanation": "",
+  "beginner_caution": "",
+  "next_step": ""
+}}
 """
 
     try:
