@@ -896,13 +896,15 @@ async function runXXSimulation(){
 
     const data = await res.json();
 
+    // ★ 損益曲線の表示を削除して、必要な情報だけを表示
     document.getElementById("simBox").innerHTML = `
 <b>【戦略シミュレーション】</b><br>
 最大利益: ${data.max_profit}<br>
 最大損失: ${data.max_loss}<br>
-損益分岐点: ${data.breakeven}<br><br>
-
+損益分岐点: ${data.breakeven}<br>
+    `;
 }
+
 
 window.onload = async () => {
     await loadNK225();
