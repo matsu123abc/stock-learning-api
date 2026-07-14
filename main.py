@@ -678,16 +678,8 @@ def index():
 
 <hr>
 
-<h3>戦略シミュレーション（手入力レッグ専用）</h3>
-
-<b>レッグ入力（JSON形式）</b><br>
-<textarea id="legsInput" style="width:100%; height:200px; font-size:20px;">
-[
-  { "option_type": "call", "position": "long",  "K": 70000, "quantity": 1, "premium": 1800 },
-  { "option_type": "call", "position": "short", "K": 71000, "quantity": 1, "premium": 1200 }
-]
-</textarea>
-
+<div id="legsUI"></div>
+<button onclick="addLeg()">レッグを追加</button>
 <button onclick="runXXSimulation()">戦略シミュレーションを実行する</button>
 
 <div id="simBox"></div>
@@ -873,21 +865,12 @@ ${strategy.next_step}
 }
 
 async function runXXSimulation(){
-    let legsJson = document.getElementById("legsInput").value;
-
-    try{
-        window.currentLegs = JSON.parse(legsJson);
-    }catch(e){
-        document.getElementById("simBox").innerHTML = "レッグ入力がJSONとして読み込めません。";
-        return;
-    }
-
     const S = parseFloat(document.getElementById("S").value);
     const T = parseFloat(document.getElementById("T").value);
     const r = parseFloat(document.getElementById("r").value);
     const sigma = parseFloat(document.getElementById("sigma").value);
 
-    const body = { S, T, r, sigma, legs: window.currentLegs };
+    const body = { S, T, r, sigma, legs: legsUIData };
 
     const res = await fetch("/api/strategy_simulation", {
         method: "POST",
@@ -897,7 +880,6 @@ async function runXXSimulation(){
 
     const data = await res.json();
 
-    // ★ 損益曲線の表示を削除して、必要な情報だけを表示
     document.getElementById("simBox").innerHTML = `
 <b>【戦略シミュレーション】</b><br>
 最大利益: ${data.max_profit}<br>
@@ -905,6 +887,69 @@ async function runXXSimulation(){
 損益分岐点: ${data.breakeven}<br>
     `;
 }
+
+let legsUIData = [];
+
+function addLeg(){
+    const index = legsUIData.length;
+
+    legsUIData.push({
+        option_type: "call",
+        position: "long",
+        K: 0,
+        quantity: 1,
+        premium: 0
+    });
+
+    renderLegsUI();
+}
+
+function renderLegsUI(){
+    let html = "";
+
+    legsUIData.forEach((leg, idx) => {
+        html += `
+        <div style="border:1px solid #ccc; padding:10px; margin:10px 0;">
+            <b>レッグ ${idx+1}</b><br>
+
+            種類:
+            <select onchange="updateLeg(${idx}, 'option_type', this.value)">
+                <option value="call" ${leg.option_type==="call"?"selected":""}>call</option>
+                <option value="put" ${leg.option_type==="put"?"selected":""}>put</option>
+            </select><br>
+
+            売買:
+            <select onchange="updateLeg(${idx}, 'position', this.value)">
+                <option value="long" ${leg.position==="long"?"selected":""}>long</option>
+                <option value="short" ${leg.position==="short"?"selected":""}>short</option>
+            </select><br>
+
+            権利行使価格(K):
+            <input type="number" value="${leg.K}" onchange="updateLeg(${idx}, 'K', parseFloat(this.value))"><br>
+
+            枚数:
+            <input type="number" value="${leg.quantity}" onchange="updateLeg(${idx}, 'quantity', parseInt(this.value))"><br>
+
+            プレミアム:
+            <input type="number" value="${leg.premium}" onchange="updateLeg(${idx}, 'premium', parseFloat(this.value))"><br>
+
+            <button onclick="removeLeg(${idx})">レッグ削除</button>
+        </div>
+        `;
+    });
+
+    document.getElementById("legsUI").innerHTML = html;
+}
+
+function updateLeg(index, key, value){
+    legsUIData[index][key] = value;
+}
+
+function removeLeg(index){
+    legsUIData.splice(index, 1);
+    renderLegsUI();
+}
+
 
 
 window.onload = async () => {
