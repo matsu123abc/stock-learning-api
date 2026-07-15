@@ -493,26 +493,26 @@ def api_strategy_simulation(req: StrategyRequest):
             initial_cost += leg.premium * leg.quantity
 
     # -----------------------------
-    # ★ 最大利益は +3% シナリオで計算する
+    # ★ 最大利益は +5% シナリオで計算する
     # -----------------------------
-    S_plus3 = req.S * 1.03
-    profit_plus3 = 0.0
+    S_plus5 = req.S * 1.05
+    profit_plus5 = 0.0
 
     for leg in req.legs:
         if leg.option_type == "call":
-            payoff = max(S_plus3 - leg.K, 0.0)
+            payoff = max(S_plus5 - leg.K, 0.0)
         else:
-            payoff = max(leg.K - S_plus3, 0.0)
+            payoff = max(leg.K - S_plus5, 0.0)
 
         if leg.position == "long":
-            profit_plus3 += payoff * leg.quantity
+            profit_plus5 += payoff * leg.quantity
         else:
-            profit_plus3 -= payoff * leg.quantity
+            profit_plus5 -= payoff * leg.quantity
 
     # 初期コスト反映
-    profit_plus3 += initial_cost
+    profit_plus5 += initial_cost
 
-    max_profit = profit_plus3
+    max_profit = profit_plus5
 
     # -----------------------------
     # 満期時の株価レンジ（±20%）
@@ -902,7 +902,7 @@ async function runXXSimulation(){
 
     document.getElementById("simBox").innerHTML = `
 <b>【戦略シミュレーション】</b><br>
-最大利益（+3%シナリオ）: ${data.max_profit}<br>
+最大利益（+5%シナリオ）: ${data.max_profit}<br>
 最大損失: ${data.max_loss}<br>
 損益分岐点: ${data.breakeven}<br>
     `;
