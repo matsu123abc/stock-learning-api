@@ -130,7 +130,8 @@ def strategy_to_legs(strategy_name, S, K, iv):
 def gpt_iv_strategy(iv, S, K, T, option_type,
                    delta, gamma, theta, vega, rho,
                    bs_price_value,
-                   scenario_text, time_scenario_text):
+                   scenario_text, time_scenario_text,
+                   market_price):
 
     client = AzureOpenAI(
         api_key=os.getenv("AZURE_OPENAI_API_KEY"),
@@ -147,14 +148,16 @@ def gpt_iv_strategy(iv, S, K, T, option_type,
 以下の市場データ・Greeks・シナリオ分析を総合評価し、
 現在の市場環境に対して最も合理的なオプション戦略を提示してください。
 
-必ず以下を満たしてください：
-- 「数値に基づく理由」を必ず記述する（感覚的・抽象的な表現は禁止）
-- 市場環境（IV水準、Greeks、シナリオ）を踏まえた論理的な戦略選択を行う
-- 過度に一般的な説明は禁止（具体的な数値と因果関係を使う）
+【絶対遵守ルール】
+- 「数値に基づく理由」を必ず記述する（抽象的な表現は禁止）
+- オプション価格として使用してよいのは次の2つのみ：
+    1. 市場価格 market_price = {market_price}
+    2. BS理論価格 bs_price = {bs_price_value}
+- 上記以外の価格（推定値・独自計算値）を絶対に生成しない
 - JSON 以外の文章を一切書かない
 - コードブロック（```）禁止
 - JSON の前後に説明文を絶対に書かない
-- JSON が壊れていたら再生成する
+- JSON が壊れていたら正しい JSON を再生成する
 
 【市場データ】
 株価 S: {S}
@@ -172,8 +175,9 @@ theta: {theta}
 vega: {vega}
 rho: {rho}
 
-【BS理論価格】
-price: {bs_price_value}
+【オプション価格】
+市場価格 market_price: {market_price}
+BS理論価格 bs_price: {bs_price_value}
 
 【株価シナリオ（±3%、±5%）】
 {scenario_text}
@@ -242,7 +246,6 @@ price: {bs_price_value}
             "beginner_caution": "",
             "next_step": ""
         }
-
 
 # -----------------------------
 # API: Greeks
@@ -865,7 +868,10 @@ async function loadIVStrategy(){
     }
     const iv = parseFloat(ivMatch[1]);
 
-    const url = `/api/iv_strategy?iv=${iv}&S=${S}&K=${K}&T=${T}&option_type=${option_type}`;
+    const market_price = parseFloat(document.getElementById("market_price").value);
+
+    const url = `/api/iv_strategy?iv=${iv}&S=${S}&K=${K}&T=${T}&option_type=${option_type}&market_price=${market_price}`;
+  
     const strategy = await fetch(url).then(r => r.json());
 
     if(strategy.error){
