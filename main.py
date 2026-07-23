@@ -348,7 +348,16 @@ def api_iv(S: float,
 # API: IV戦略（GPT）  <-- 差し替え
 # -----------------------------
 @app.get("/api/iv_strategy")
-def api_iv_strategy(iv: float, S: float, K: float, T: float, option_type: str, r: float = 0.001, sigma: float = 0.3):
+def api_iv_strategy(
+    iv: float,
+    S: float,
+    K: float,
+    T: float,
+    option_type: str,
+    market_price: float,
+    r: float = 0.001,
+    sigma: float = 0.3
+):
     try:
         # 1) Greeks を計算（フロントから渡された r, sigma を使う）
         g = greeks(S, K, T, r, sigma, option_type)
@@ -370,13 +379,14 @@ def api_iv_strategy(iv: float, S: float, K: float, T: float, option_type: str, r
         scenario_text = "\n".join([f"{label}: rate={rate}" for label, rate in scenarios])
         time_scenario_text = "7日後: +5%/-5%/+10%/-10% のシナリオ"
 
-        # 3) GPT戦略を生成（外部呼び出し）
+        # 3) GPT戦略を生成（market_price を渡す）
         result = gpt_iv_strategy(
             iv, S, K, T, option_type,
             delta, gamma, theta, vega, rho,
             bs_price_value,
             scenario_text,
-            time_scenario_text
+            time_scenario_text,
+            market_price
         )
 
         # 4) result の型チェックとエラーハンドリング
@@ -384,24 +394,18 @@ def api_iv_strategy(iv: float, S: float, K: float, T: float, option_type: str, r
             return {"error": "gpt_returned_none", "message": "gpt_iv_strategy が None を返しました"}
 
         if isinstance(result, dict) and result.get("error"):
-            # GPT内部でエラーが返ってきた場合はそのまま返す（デバッグ用）
             return {"error": "gpt_error", "detail": result}
 
-        # 5) strategy を安全に取り出す
         strategy_name = ""
         if isinstance(result, dict):
             strategy_name = result.get("strategy", "") or ""
         else:
-            # 文字列などが返ってきた場合はログに残してフォールバック
             strategy_name = str(result)
 
-        # 6) 戦略名から自動で legs を生成（必ず配列を返す）
         legs = strategy_to_legs(strategy_name, S, K, iv) or []
-        # GPTが既に legs を返しているならそれを優先
         if isinstance(result, dict) and isinstance(result.get("legs"), list) and len(result.get("legs")) > 0:
             legs = result.get("legs")
 
-        # 7) 最終レスポンスを組み立てる（常に legs を含める）
         response = {
             "strategy": strategy_name,
             "expert_reason": (result.get("expert_reason") if isinstance(result, dict) else "") or "",
@@ -414,11 +418,11 @@ def api_iv_strategy(iv: float, S: float, K: float, T: float, option_type: str, r
         return response
 
     except Exception as e:
-        # 本番では詳細スタックはログに出す。ここでは簡潔なエラーを返す
         import traceback
         tb = traceback.format_exc()
         print("api_iv_strategy exception:", tb)
         return {"error": "server_exception", "message": str(e)}
+
 
 # -----------------------------
 # API: 時間軸シナリオ（±5%、±10%）
@@ -624,7 +628,7 @@ def index():
 
 <body>
 
-<h2>stock-learning-api</h2>
+<h2>単一コール／プット ＢＳシミュレーション</h2>
 
 <h3>入力</h3>
 
@@ -658,16 +662,6 @@ def index():
   <option value="call">コール</option>
   <option value="put">プット</option>
 </select>
-
-売買:
-<select onchange="updateLeg(${idx}, 'position', this.value)">
-    <option value="long" ${leg.position==="long"?"selected":""} style="color:blue;">
-        買い（long）
-    </option>
-    <option value="short" ${leg.position==="short"?"selected":""} style="color:red;">
-        売り（short）
-    </option>
-</select><br>
 
 <button onclick="loadSummary()">計算する</button>
 
