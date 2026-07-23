@@ -656,6 +656,16 @@ def index():
   <option value="put">プット</option>
 </select>
 
+売買:
+<select onchange="updateLeg(${idx}, 'position', this.value)">
+    <option value="long" ${leg.position==="long"?"selected":""} style="color:blue;">
+        買い（long）
+    </option>
+    <option value="short" ${leg.position==="short"?"selected":""} style="color:red;">
+        売り（short）
+    </option>
+</select><br>
+
 <button onclick="loadSummary()">計算する</button>
 
 <div id="resultBox"></div>
