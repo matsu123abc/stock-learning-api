@@ -655,7 +655,7 @@ def index():
 
 <hr>
 
-<h3>株価シナリオ（±3%、±5%）</h3>
+<h3>株価シナリオ（±1.5%、±3%）</h3>
 <button onclick="loadScenarioBS()">シナリオ計算を実行する</button>
 <div id="scenarioBox"></div>
 
