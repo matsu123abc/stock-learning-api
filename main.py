@@ -264,13 +264,13 @@ def bs_price_api(S: float, K: float, T: float, r: float, sigma: float, option_ty
 # -----------------------------
 @app.get("/api/scenario_bs")
 def scenario_bs_api(S: float, K: float, T: float, r: float, sigma: float, option_type: str):
-    # ★ シナリオを ±3%、±5% に変更
+
     scenarios = [
         ("現在値", 0.00),
-        ("+3%",   0.03),
-        ("-3%",  -0.03),
-        ("+5%",   0.05),
-        ("-5%",  -0.05),
+        ("+1.5%",  0.015),
+        ("-1.5%", -0.015),
+        ("+3%",    0.03),
+        ("-3%",   -0.03),
     ]
 
     results = []
@@ -284,6 +284,7 @@ def scenario_bs_api(S: float, K: float, T: float, r: float, sigma: float, option
         })
 
     return {"scenarios": results}
+
 
 # -----------------------------
 # API: Historical Volatility
@@ -420,39 +421,27 @@ def api_iv_strategy(
         print("api_iv_strategy exception:", tb)
         return {"error": "server_exception", "message": str(e)}
 
-
 # -----------------------------
 # API: 時間軸シナリオ（±5%、±10%）
 # -----------------------------
 @app.get("/api/time_scenario_bs")
-def time_scenario_bs(
-    S: float,
-    K: float,
-    T: float,
-    r: float,
-    sigma: float,
-    option_type: str,
-    days: int = 7
-):
-    # 残存期間を更新（年換算）
+def time_scenario_bs(S: float, K: float, T: float, r: float, sigma: float, option_type: str, days: int = 7):
+
     T_new = T - days / 365
     if T_new < 0:
         T_new = 0.00001
 
-    # 株価変動シナリオ（±3%、±5%）
     scenarios = [
-        ("+3%",  0.03),
-        ("-3%", -0.03),
-        ("+5%",  0.05),
-        ("-5%", -0.05),
+        ("+1.5%",  0.015),
+        ("-1.5%", -0.015),
+        ("+3%",    0.03),
+        ("-3%",   -0.03),
     ]
 
     results = []
-
     for label, rate in scenarios:
         S_new = S * (1 + rate)
         price = bs_price(S_new, K, T_new, r, sigma, option_type)
-
         results.append({
             "label": f"{days}日後 {label}",
             "S": S_new,
